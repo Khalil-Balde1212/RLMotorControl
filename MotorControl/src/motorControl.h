@@ -16,6 +16,8 @@ namespace Motor
     extern volatile int lastEncoded;
     
     // Motor state variables
+
+    /// @brief Current motor position, velocity, acceleration, and jerk
     extern float motorPos; //theta
     extern float motorVel; //theta'
     extern float motorAcc; //theta''
@@ -30,7 +32,8 @@ namespace Motor
     extern float motorVelEMAGain;
     extern float motorAccEMAGain;
     extern float motorJrkEMAGain;
-
+    
+    /// @brief Counts per revolution for the encoder
     extern int countsPerRevolution; // Example value, set according to your encoder
 
     // Task to monitor and report encoder position
@@ -43,8 +46,11 @@ namespace Motor
 
     void TaskMotorControl(void *pvParameters);
     void TaskSerialInput(void *pvParameters);
+
+    void TaskEncoderPrints(void *pvParameters);
+
+
+
     void setup();
-
-
 }
 #endif

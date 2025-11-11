@@ -38,7 +38,10 @@ void Motor::setup()
     // Create Encoder Task
     xTaskCreate(TaskEncoder, "EncoderTask", 256, NULL, 1, NULL);
     xTaskCreate(TaskMotorControl, "MotorControlTask", 256, NULL, 1, NULL);
+
+    //serial tasks
     xTaskCreate(TaskSerialInput, "SerialInputTask", 256, NULL, 1, NULL);
+    xTaskCreate(TaskEncoderPrints, "EncoderPrintsTask", 256, NULL, 1, NULL);
 }
 
 void Motor::encoderISR()
@@ -69,20 +72,21 @@ void Motor::TaskEncoder(void *pvParameters)
     {
         TickType_t xLastWakeTime = xTaskGetTickCount();
         long currentPosition = encoderPosition;
-        motorPos = (2.0f * 3.14159265f * currentPosition) / countsPerRevolution;
-        motorPos = motorPosEMAGain * motorPos + (1.0f - motorPosEMAGain) * lastMotorPos;
+        float rawPos = (2.0f * 3.14159265f * currentPosition) / countsPerRevolution; // Convert counts to radians
+        motorPos = motorPosEMAGain * rawPos + (1.0f - motorPosEMAGain) * lastMotorPos;
+        
+        float rawVel = (motorPos - lastMotorPos) / (0.01f);
+        motorVel = motorVelEMAGain * rawVel + (1.0f - motorVelEMAGain) * lastMotorVel;
+
+        float rawAcc = (motorVel - lastMotorVel) / (0.01f);
+        motorAcc = motorAccEMAGain * rawAcc + (1.0f - motorAccEMAGain) * lastMotorAcc;
+
+        float rawJrk = (motorAcc - lastMotorAcc) / (0.01f);
+        motorJrk = motorJrkEMAGain * rawJrk + (1.0f - motorJrkEMAGain) * lastMotorJrk;
+
         lastMotorPos = motorPos;
-
-        motorVel = (motorPos - lastMotorPos) / (0.1f);
-        motorVel = motorVelEMAGain * motorVel + (1.0f - motorVelEMAGain) * motorVel;
         lastMotorVel = motorVel;
-
-        motorAcc = (motorVel - lastMotorVel) / (0.1f);
-        motorAcc = motorAccEMAGain * motorAcc + (1.0f - motorAccEMAGain) * motorAcc;
         lastMotorAcc = motorAcc;
-
-        motorJrk = (motorAcc - lastMotorAcc) / (0.1f);
-        motorJrk = motorJrkEMAGain * motorJrk + (1.0f - motorJrkEMAGain) * motorJrk;
         lastMotorJrk = motorJrk;
 
         vTaskDelayUntil(&xLastWakeTime, delay);
@@ -129,6 +133,26 @@ void Motor::TaskSerialInput(void *pvParameters)
             Serial.println(Motor::motorSpeed);
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+}
+
+void Motor::TaskEncoderPrints(void *pvParameters)
+{
+    (void)pvParameters;
+    int taskFrequencyHz = 10;
+    TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
+
+    for (;;)
+    {
+        TickType_t xLastWakeTime = xTaskGetTickCount();
+        Serial.print(motorPos);
+        Serial.print(",");
+        Serial.print(motorVel);
+        Serial.print(",");
+        Serial.print(motorAcc);
+        Serial.print(",");
+        Serial.println(motorJrk);
+        vTaskDelayUntil(&xLastWakeTime, delay);
     }
 }
 
