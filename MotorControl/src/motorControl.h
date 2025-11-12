@@ -8,6 +8,7 @@
 #define ENCODER_B 3
 #define MOTOR_PIN_A 5
 #define MOTOR_PIN_B 6
+#define CURRENT_SENSE_PIN A0
 
 namespace Motor
 {
@@ -32,12 +33,16 @@ namespace Motor
     extern float motorVelEMAGain;
     extern float motorAccEMAGain;
     extern float motorJrkEMAGain;
+
+    extern float motorCurrent; // Current motor current
+    extern float lastMotorCurrent;
+    extern float motorCurrentEMAGain;
     
     /// @brief Counts per revolution for the encoder
     extern int countsPerRevolution; // Example value, set according to your encoder
 
     // Task to monitor and report encoder position
-    void TaskEncoder(void *pvParameters);
+    void TaskSensorReads(void *pvParameters);
     void encoderISR();
 
 
@@ -47,7 +52,7 @@ namespace Motor
     void TaskMotorControl(void *pvParameters);
     void TaskSerialInput(void *pvParameters);
 
-    void TaskEncoderPrints(void *pvParameters);
+    void SensorPrints(void *pvParameters);
 
 
 
