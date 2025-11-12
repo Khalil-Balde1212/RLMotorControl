@@ -2,6 +2,7 @@
 #include <FreeRTOS_SAMD21.h>
 #include <BasicLinearAlgebra.h>
 #include "motorControl.h"
+#include "tinyml.h"
 
 using namespace BLA;
 
@@ -14,6 +15,8 @@ void setup()
   }
 
   Motor::setup();
+  TinyML::setup();
+
 
   vTaskStartScheduler();
 

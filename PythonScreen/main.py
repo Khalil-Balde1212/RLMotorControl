@@ -48,6 +48,20 @@ def main():
         plotter.start(interval=100)  # Slower update rate
         print("Press Ctrl+C to stop the plotter.")
     finally:
+        # Print maximum values recorded
+        if hasattr(plotter, 'data_streams') and len(plotter.data_streams) >= 6:
+            try:
+                max_velocity = max(plotter.data_streams[1]) if plotter.data_streams[1] else 0
+                max_acceleration = max(plotter.data_streams[2]) if plotter.data_streams[2] else 0
+                max_jerk = max(plotter.data_streams[3]) if plotter.data_streams[3] else 0
+                
+                print("\nMaximum values recorded:")
+                print(f"Max Velocity: {max_velocity:.3f} rad/s")
+                print(f"Max Acceleration: {max_acceleration:.3f} rad/s²")
+                print(f"Max Jerk: {max_jerk:.3f} rad/s³")
+            except (ValueError, TypeError):
+                print("Could not calculate maximum values - no valid data received.")
+        
         plotter.close()
 
 

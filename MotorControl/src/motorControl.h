@@ -8,13 +8,14 @@
 #define ENCODER_B 3
 #define MOTOR_PIN_A 5
 #define MOTOR_PIN_B 6
-#define CURRENT_SENSE_PIN A0
+#define CURRENT_SENSE_PIN A1
 
 namespace Motor
 {
     // Encoder variables
     extern volatile long encoderPosition;
     extern volatile int lastEncoded;
+    extern float motorSetpoint;
     
     // Motor state variables
 

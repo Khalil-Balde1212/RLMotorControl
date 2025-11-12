@@ -5,6 +5,7 @@ namespace Motor
     volatile long encoderPosition = 0;
     volatile int lastEncoded = 0;
     int countsPerRevolution = 1940;
+    float motorSetpoint = 3.14159265f; // Target position (radians)
 
     float motorPos = 0.0f; //theta
     float motorVel = 0.0f; //theta'
@@ -71,7 +72,7 @@ void Motor::encoderISR()
 void Motor::TaskSensorReads(void *pvParameters)
 {
     (void)pvParameters;
-    int taskFrequencyHz = 100;
+    int taskFrequencyHz = 1000;
     TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
     // long lastPosition = 0;
 
@@ -172,7 +173,7 @@ void Motor::SensorPrints(void *pvParameters)
         Serial.print(",");
         Serial.print(motorCurrent);
         Serial.print(",");
-        Serial.println(Motor::motorSpeed);
+        Serial.println(Motor::motorSpeed / 255.0f); // Print motor speed as percentage
 
         vTaskDelayUntil(&xLastWakeTime, delay);
     }
