@@ -15,6 +15,7 @@ void setup()
 
   Motor::setup();
   Serial.println("Khalil sucks poopoo");
+  Serial.println("This is Marc saying his opinion of Khalil");
   vTaskStartScheduler();
 
   // If we get here, there was insufficient memory to create idle task
