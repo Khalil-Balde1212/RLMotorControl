@@ -32,6 +32,25 @@ CONTROL_FREQUENCY = 1000
 DT = 1.0 / CONTROL_FREQUENCY # Discrete Timesteps
 
 
+# Calculate maximum motor performance from motor parameters
+# Max steady-state velocity occurs when Back-EMF equals applied voltage at max torque
+# At steady state: V_max = Ke * ω_max + R * I_ss
+# Where I_ss is the current needed to overcome friction: B * ω_max = Kt * I_ss
+# Solving: ω_max = V_max / (Ke + R * B / Kt)
+MaxVel = MAX_VOLTAGE / (Ke + R * B / Kt)
+
+# Maximum acceleration occurs at stall (ω = 0) with maximum current
+# I_max = V_max / R (at stall, no back-EMF)
+# Max torque: T_max = Kt * I_max - B * 0 = Kt * V_max / R
+# Max acceleration: α_max = T_max / J
+MaxAcc = (Kt * MAX_VOLTAGE / R) / J
+
+# Maximum jerk is limited by electrical time constant L/R
+# di/dt_max = V_max / L (when current is zero)
+# dα/dt_max = (Kt / J) * di/dt_max
+MaxJrk = (Kt / J) * (MAX_VOLTAGE / L)
+
+
 
 
 def motorStep(control_effort):

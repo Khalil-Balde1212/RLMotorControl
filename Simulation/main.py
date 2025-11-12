@@ -10,8 +10,8 @@ accData = []
 jrkData = []
 
 angularVel_values = []
-for i in range(5000):
-    angularPos, angularVel, angularAcc, angularJrk = motor_model.motorStep(0)
+for i in range(2000):
+    angularPos, angularVel, angularAcc, angularJrk = motor_model.motorStep(np.random.uniform(-1.0, 1.0))
     posData.append(angularPos)
     velData.append(angularVel)
     accData.append(angularAcc)
