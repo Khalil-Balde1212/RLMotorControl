@@ -2,7 +2,6 @@ import serial
 import serial.tools.list_ports
 from serial_plotter import SerialPlotter
 
-
 def find_serial_port(baud_rate=9600):
     # Get all available ports
     available_ports = serial.tools.list_ports.comports()
@@ -22,7 +21,7 @@ def find_serial_port(baud_rate=9600):
 
 
 def main():
-    BAUD_RATE = 9600
+    BAUD_RATE = 115200
     MAX_POINTS = 100
     ser = find_serial_port(BAUD_RATE) # Find and connect to serial port
     
@@ -34,14 +33,19 @@ def main():
         'Angular Position (rad)', 
         'Angular Velocity (rad/s)', 
         'Angular Acceleration (rad/s²)', 
-        'Angular Jerk (rad/s³)'
+        'Angular Jerk (rad/s³)',
+        'Current (A)',
+        'Control Signal'
     ]
     
     # Create and start the plotter
     plotter = SerialPlotter(ser, max_points=MAX_POINTS, graph_labels=graph_labels)
     
+    print("Starting plotter... If no window appears, check your display settings.")
+    print("Data format expected: pos,vel,acc,jrk,current,control_signal")
+    
     try:
-        plotter.start(interval=50)
+        plotter.start(interval=100)  # Slower update rate
         print("Press Ctrl+C to stop the plotter.")
     finally:
         plotter.close()

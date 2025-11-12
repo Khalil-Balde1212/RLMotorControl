@@ -11,15 +11,18 @@ class SerialPlotter:
         # Default labels if none provided
         if graph_labels is None:
             graph_labels = ['Angular Position (rad)', 'Angular Velocity (rad/s)', 
-                          'Angular Acceleration (rad/s²)', 'Angular Jerk (rad/s³)']
+                          'Angular Acceleration (rad/s²)', 'Angular Jerk (rad/s³)',
+                          'Current (A)', 'Control Signal']
         self.graph_labels = graph_labels
         
-        # Data storage for 4 values
+        # Data storage for 6 values
         self.data_streams = [
             deque(maxlen=max_points),
             deque(maxlen=max_points),
             deque(maxlen=max_points),
-            deque(maxlen=max_points)
+            deque(maxlen=max_points),
+            deque(maxlen=max_points),
+            deque(maxlen=max_points),
         ]
         
         # Setup the figure and plots
@@ -28,7 +31,7 @@ class SerialPlotter:
     def _setup_figure(self):
         """Create the matplotlib figure with graphs"""
         # Create figure with graphs in a single row
-        self.fig, self.axes = plt.subplots(1, 4, figsize=(16, 4))
+        self.fig, self.axes = plt.subplots(1, 6, figsize=(16, 4))
         self.lines = []
         
         for i, ax in enumerate(self.axes):
@@ -49,7 +52,7 @@ class SerialPlotter:
             line = self.ser.readline().decode('utf-8').strip()
             if line:
                 values = line.split(',')
-                if len(values) == 4:
+                if len(values) == 6:
                     # Append new data to each stream
                     for i, value in enumerate(values):
                         self.data_streams[i].append(float(value))
