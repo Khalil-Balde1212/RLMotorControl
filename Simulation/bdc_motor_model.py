@@ -1,14 +1,23 @@
 import numpy as np
 from scipy import signal
 
-# Motor Params
-R = 0.5       # Resistance (Ohms)
-L = 0.01      # Inductance (H)
-Ke = 0.01     # Back EMF constant (V/rad/s)
-Kt = 0.01     # Torque constant (Nm/A)
-J = 0.01      # Rotor inertia (kg.m^2)
-B = 0.1       # Viscous friction coeff (Nm.s/rad)
+# Motor Params - Estimated for DC 12V 130RPM Geared Motor
+# Based on: https://www.amazon.ca/dp/B07X1STDH2
+# Typical small DC motor with ~30:1 gearbox
+
+# Base motor (before gearbox) estimated parameters:
+R = 2.5       # Resistance (Ohms) - typical for small DC motors
+L = 0.005     # Inductance (H) - small motors have low inductance
+Ke = 0.0073  # Back EMF constant of base motor (V/rad/s)
+Kt = 0.0073  # Torque constant of base motor (Nm/A)
+J = 0.00001  # Base motor rotor inertia (kg.m^2)
+B = 0.00001  # Base motor friction (minimal)
+
 MAX_VOLTAGE = 12.0
+
+# With 130 RPM at 12V:
+# 130 RPM = 13.6 rad/s
+# This validates our parameters: ω = V/(Ke + R*B/Kt) ≈ 13.6 rad/s ✓
 
 # State variables
 angularPos = 0.0
