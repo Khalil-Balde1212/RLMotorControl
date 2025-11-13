@@ -58,9 +58,6 @@ namespace Motor
     void TaskMotorControl(void *pvParameters);
     void TaskSerialInput(void *pvParameters);
 
-    void SensorPrints(void *pvParameters);
-
-
 
     void setup();
 }

@@ -57,7 +57,6 @@ void Motor::setup()
 
     //serial tasks
     xTaskCreate(TaskSerialInput, "SerialInputTask", 256, NULL, 1, NULL);
-    xTaskCreate(SensorPrints, "EncoderPrintsTask", 256, NULL, 1, NULL);
 }
 
 void Motor::encoderISR()
@@ -173,41 +172,6 @@ void Motor::TaskSerialInput(void *pvParameters)
             Serial.println(Motor::motorSpeed);
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-}
-
-void Motor::SensorPrints(void *pvParameters)
-{
-    (void)pvParameters;
-    int taskFrequencyHz = 10;  // Reduced from 100Hz to 2Hz to reduce Serial load
-    TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
-
-    for (;;)
-    {
-        TickType_t xLastWakeTime = xTaskGetTickCount();
-        Serial.print(motorPos);
-        Serial.print(",");
-        Serial.print(motorSetpoint);
-        Serial.print(",");
-        Serial.print(motorVel);
-        Serial.print(",");
-        Serial.print(motorAcc);
-        Serial.print(",");
-        Serial.print(motorJrk);
-        Serial.print(",");
-        Serial.print(motorCurrent);
-        Serial.print(",");
-        Serial.print(Motor::motorSpeed / 255.0f); // Print motor speed as percentage
-        Serial.print(",");
-        Serial.print(propError);    // P error
-        Serial.print(",");
-        Serial.print(intError);     // I error
-        Serial.print(",");
-        Serial.print(derivError);   // D error
-        Serial.print(",");
-        Serial.println(TinyML::reward);
-
-        vTaskDelayUntil(&xLastWakeTime, delay);
     }
 }
 
