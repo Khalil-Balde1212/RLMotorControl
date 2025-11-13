@@ -28,40 +28,29 @@ def main():
     if ser is None:
         raise Exception("No valid serial port found. Please check your connections.")
     
-    # Custom graph labels
-    graph_labels = [
-        'Angular Position (rad)', 
-        'Angular Velocity (rad/s)', 
-        'Angular Acceleration (rad/s²)', 
-        'Angular Jerk (rad/s³)',
-        'Current (A)',
-        'Control Signal',
-        'Reward'
-    ]
+    # Custom graph labels (will be overridden dynamically)
+    graph_labels = None
     
     # Create and start the plotter
     plotter = SerialPlotter(ser, max_points=MAX_POINTS, graph_labels=graph_labels)
     
     print("Starting plotter... If no window appears, check your display settings.")
-    print("Data format expected: pos,vel,acc,jrk,current,control_signal,reward")
+    print("Data format: comma-separated values (number of graphs will auto-adjust)")
     
     try:
         plotter.start(interval=100)  # Slower update rate
         print("Press Ctrl+C to stop the plotter.")
     finally:
         # Print maximum values recorded
-        if hasattr(plotter, 'data_streams') and len(plotter.data_streams) >= 7:
-            try:
-                max_velocity = max(plotter.data_streams[1]) if plotter.data_streams[1] else 0
-                max_acceleration = max(plotter.data_streams[2]) if plotter.data_streams[2] else 0
-                max_jerk = max(plotter.data_streams[3]) if plotter.data_streams[3] else 0
-                
-                print("\nMaximum values recorded:")
-                print(f"Max Velocity: {max_velocity:.3f} rad/s")
-                print(f"Max Acceleration: {max_acceleration:.3f} rad/s²")
-                print(f"Max Jerk: {max_jerk:.3f} rad/s³")
-            except (ValueError, TypeError):
-                print("Could not calculate maximum values - no valid data received.")
+        if hasattr(plotter, 'data_streams') and plotter.data_streams:
+            n = len(plotter.data_streams)
+            print(f"\nMaximum values recorded for {n} streams:")
+            for i in range(n):
+                if plotter.data_streams[i]:
+                    max_val = max(plotter.data_streams[i])
+                    print(f"Stream {i+1}: {max_val:.3f}")
+                else:
+                    print(f"Stream {i+1}: No data")
         
         plotter.close()
 

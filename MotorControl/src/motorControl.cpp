@@ -6,7 +6,9 @@ namespace Motor
     volatile long encoderPosition = 0;
     volatile int lastEncoded = 0;
     int countsPerRevolution = 1940;
-    float motorSetpoint = 3.1415f; // Target position (radians) - π to require movement
+    float motorSetpoint = 3.1415f; // Base target position (radians)
+    float setpointAmplitude = 3.14f; // Reduced amplitude for easier tracking
+    float setpointFrequency = 0.1f; // Increased frequency for more dynamic learning
 
     float motorPos = 0.0f; //theta
     float motorVel = 0.0f; //theta'
@@ -25,6 +27,11 @@ namespace Motor
     float motorCurrent = 0.0f; // Current motor current
     float lastMotorCurrent = 0.0f;
     float motorCurrentEMAGain = 0.1f;
+
+    // PID error terms
+    float propError = 0.0f;     // Proportional error
+    float intError = 0.0f;      // Integral error
+    float derivError = 0.0f;    // Derivative error
 
     int motorSpeed = 0;
 }
@@ -45,7 +52,7 @@ void Motor::setup()
     analogReadResolution(12); // 12-bit ADC resolution
 
     // Create Encoder Task
-    xTaskCreate(TaskSensorReads, "EncoderTask", 256, NULL, 1, NULL);
+    xTaskCreate(TaskSensorReads, "EncoderTask", 512, NULL, 1, NULL);
     xTaskCreate(TaskMotorControl, "MotorControlTask", 256, NULL, 1, NULL);
 
     //serial tasks
@@ -73,9 +80,11 @@ void Motor::encoderISR()
 void Motor::TaskSensorReads(void *pvParameters)
 {
     (void)pvParameters;
-    int taskFrequencyHz = 1000;
+    int taskFrequencyHz = 100;  // Reduced from 1000Hz to reduce CPU load
     TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
     // long lastPosition = 0;
+
+    static float time = 0.0f; // Time in seconds
 
     for (;;)
     {
@@ -84,20 +93,32 @@ void Motor::TaskSensorReads(void *pvParameters)
         float rawPos = (2.0f * 3.14159265f * currentPosition) / countsPerRevolution; // Convert counts to radians
         motorPos = motorPosEMAGain * rawPos + (1.0f - motorPosEMAGain) * lastMotorPos;
         
-        float rawVel = (motorPos - lastMotorPos) / (0.01f);
+        // Update sinusoidal setpoint
+        time += 0.01f; // Increment time (10ms per iteration at 100Hz)
+        float baseSetpoint = 3.1415f;
+        motorSetpoint = baseSetpoint + setpointAmplitude * sin(2.0f * 3.14159265f * setpointFrequency * time);
+        
+        float dt = 0.01f; // 10ms at 100Hz
+        float rawVel = (motorPos - lastMotorPos) / dt;
         motorVel = motorVelEMAGain * rawVel + (1.0f - motorVelEMAGain) * lastMotorVel;
 
-        float rawAcc = (motorVel - lastMotorVel) / (0.01f);
+        float rawAcc = (motorVel - lastMotorVel) / dt;
         motorAcc = motorAccEMAGain * rawAcc + (1.0f - motorAccEMAGain) * lastMotorAcc;
 
-        float rawJrk = (motorAcc - lastMotorAcc) / (0.01f);
+        float rawJrk = (motorAcc - lastMotorAcc) / dt;
         motorJrk = motorJrkEMAGain * rawJrk + (1.0f - motorJrkEMAGain) * lastMotorJrk;
 
         // ACS712 5A: 185mV/A, centered at 2.5V (before divider)
         // With 1/2 voltage divider: centered at 1.25V, sensitivity 92.5mV/A
-        float voltage = 2.0f * analogRead(CURRENT_SENSE_PIN) / 4095.0f * 3.3f; // Convert ADC to voltage (3.3V supply, 12-bit ADC)
-        float rawCurrent = (voltage - 2.5) / 185.0f; // Convert voltage to current
+        float voltage = analogRead(CURRENT_SENSE_PIN) * 3.3f / 4095.0f; // Convert ADC to voltage (3.3V supply, 12-bit ADC)
+        float rawCurrent = (voltage - 1.25f) / 0.0925f; // Convert voltage to current (92.5mV/A = 0.0925V/A)
         motorCurrent = motorCurrentEMAGain * rawCurrent + (1.0f - motorCurrentEMAGain) * lastMotorCurrent;
+
+        // Compute PID error terms
+        propError = motorSetpoint - motorPos;                    // P: setpoint - position
+        derivError = -motorVel;                                  // D: -velocity (approximation when setpoint changes slowly)
+        intError = intError * 0.996f + propError * 0.004f;       // I: decayed accumulation (adjusted for 100Hz)
+        intError = constrain(intError, -50.0f, 50.0f);          // Cap integral windup
 
         lastMotorPos = motorPos;
         lastMotorVel = motorVel;
@@ -112,7 +133,7 @@ void Motor::TaskSensorReads(void *pvParameters)
 void Motor::TaskMotorControl(void *pvParameters)
 {
     (void)pvParameters;
-    int taskFrequencyHz = 1000;
+    int taskFrequencyHz = 100;  // Reduced from 1000Hz
     TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
 
     for (;;)
@@ -158,13 +179,15 @@ void Motor::TaskSerialInput(void *pvParameters)
 void Motor::SensorPrints(void *pvParameters)
 {
     (void)pvParameters;
-    int taskFrequencyHz = 100;
+    int taskFrequencyHz = 10;  // Reduced from 100Hz to 2Hz to reduce Serial load
     TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
 
     for (;;)
     {
         TickType_t xLastWakeTime = xTaskGetTickCount();
         Serial.print(motorPos);
+        Serial.print(",");
+        Serial.print(motorSetpoint);
         Serial.print(",");
         Serial.print(motorVel);
         Serial.print(",");
@@ -175,6 +198,12 @@ void Motor::SensorPrints(void *pvParameters)
         Serial.print(motorCurrent);
         Serial.print(",");
         Serial.print(Motor::motorSpeed / 255.0f); // Print motor speed as percentage
+        Serial.print(",");
+        Serial.print(propError);    // P error
+        Serial.print(",");
+        Serial.print(intError);     // I error
+        Serial.print(",");
+        Serial.print(derivError);   // D error
         Serial.print(",");
         Serial.println(TinyML::reward);
 

@@ -39,6 +39,11 @@ namespace Motor
     extern float lastMotorCurrent;
     extern float motorCurrentEMAGain;
     
+    /// @brief PID error terms for control
+    extern float propError;     // Proportional error: setpoint - position
+    extern float intError;      // Integral error: accumulated error over time
+    extern float derivError;    // Derivative error: -velocity
+    
     /// @brief Counts per revolution for the encoder
     extern int countsPerRevolution; // Example value, set according to your encoder
 
