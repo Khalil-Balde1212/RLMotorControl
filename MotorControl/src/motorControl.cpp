@@ -1,11 +1,12 @@
 #include "motorControl.h"
+#include "tinyml.h"
 
 namespace Motor
 {
     volatile long encoderPosition = 0;
     volatile int lastEncoded = 0;
     int countsPerRevolution = 1940;
-    float motorSetpoint = 3.14159265f; // Target position (radians)
+    float motorSetpoint = 3.1415f; // Target position (radians) - π to require movement
 
     float motorPos = 0.0f; //theta
     float motorVel = 0.0f; //theta'
@@ -16,10 +17,10 @@ namespace Motor
     float lastMotorAcc = 0.0f; //theta''_{t-1}
     float lastMotorJrk = 0.0f; //theta'''_{t-1}
 
-    float motorPosEMAGain = 0.1f;
-    float motorVelEMAGain = 0.1f;
-    float motorAccEMAGain = 0.1f;
-    float motorJrkEMAGain = 0.1f;
+    float motorPosEMAGain = 0.5f;
+    float motorVelEMAGain = 0.5f;
+    float motorAccEMAGain = 1.0f;   // No filtering for acceleration
+    float motorJrkEMAGain = 1.0f;   // No filtering for jerk
 
     float motorCurrent = 0.0f; // Current motor current
     float lastMotorCurrent = 0.0f;
@@ -157,7 +158,7 @@ void Motor::TaskSerialInput(void *pvParameters)
 void Motor::SensorPrints(void *pvParameters)
 {
     (void)pvParameters;
-    int taskFrequencyHz = 10;
+    int taskFrequencyHz = 100;
     TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
 
     for (;;)
@@ -173,7 +174,9 @@ void Motor::SensorPrints(void *pvParameters)
         Serial.print(",");
         Serial.print(motorCurrent);
         Serial.print(",");
-        Serial.println(Motor::motorSpeed / 255.0f); // Print motor speed as percentage
+        Serial.print(Motor::motorSpeed / 255.0f); // Print motor speed as percentage
+        Serial.print(",");
+        Serial.println(TinyML::reward);
 
         vTaskDelayUntil(&xLastWakeTime, delay);
     }

@@ -1,53 +1,37 @@
 #ifndef TINYML_H
 #define TINYML_H
 
-#define ALPHA 0.1f //learning rate
-#define GAMMA 0.5f //discount factor
-#define EPSILON 0.1f //exploration rate
+#define ALPHA 0.01f //learning rate
+#define GAMMA 0.9f //discount factor
+#define EPSILON 0.2f //exploration rate
 
-// Discretization ranges (adjust based on your motor specs)
-#define POS_MIN 0.0f       // Position min (radians, 0 = start)
-#define POS_MAX 6.2832f    // Position max (2*pi radians, full rotation)
-#define VEL_MIN -5.67f     // Velocity min (rad/s)
-#define VEL_MAX 5.67f      // Velocity max (rad/s)
-#define ACC_MIN -53.8f     // Acceleration min (rad/s^2)
-#define ACC_MAX 53.8f      // Acceleration max (rad/s^2)
-#define JRK_MIN -336.32f    // Jerk min (rad/s^3)
-#define JRK_MAX 336.32f     // Jerk max (rad/s^3)
-#define CURR_MIN 0.0f      // Current min (A)
-#define CURR_MAX 2.0f      // Current max (A)
+// Normalization constants (max absolute values for features)
+#define POS_MAX 6.283185f  // 2*pi radians
+#define VEL_MAX 25.0f      // rad/s
+#define ACC_MAX 100.0f      // rad/s^2
+#define JRK_MAX 300.0f     // rad/s^3
+#define CURR_MAX 2.0f      // A
+#define ERR_MAX 50.0f      // accumulated position error
 
-// Number of bins per variable (reduced for memory)
-#define D_POS 3
-#define D_VEL 3
-#define D_ACC 3
-#define D_JRK 3
-#define D_CURR 3
-
-#define NUM_STATES D_POS*D_VEL*D_ACC*D_JRK*D_CURR  // 3^5 = 243 states
-#define NUM_ACTIONS 11 // Actions: motor speeds from -255 to 255 in steps
+// State features: 1 + pos + vel + acc + jrk + curr + err = 7 total (action is output, not input)
+#define NUM_FEATURES 7
 
 namespace TinyML
 {
-    extern float qTable[NUM_STATES][NUM_ACTIONS];
-    extern int currentState;
+    extern float weights[NUM_FEATURES]; // Linear weights for Q(s,a)
     extern int action;
     extern float reward;
 
-    void initializeQTable();
-    int chooseAction(int state);
+    void initializeWeights();
+    float computeAction(float pos, float vel, float acc, float jrk, float curr, float accumErr);
 
-    // Discretization functions
-    int discretizePos(float val);
-    int discretizeVel(float val);
-    int discretizeAcc(float val);
-    int discretizeJrk(float val);
-    int discretizeCurr(float val);
+    // Compute value function for given state (no action needed since action is output)
+    float computeValue(float pos, float vel, float acc, float jrk, float curr, float accumErr);
 
-    // Get state index from discretized values
-    int getStateIndex(int dPos, int dVel, int dAcc, int dJrk, int dCurr);
-    void updateQTable(int oldState, int action, float reward, int newState);
-    float computeReward();
+    // Update weights based on TD error for continuous actions
+    void updateWeights(float oldPos, float oldVel, float oldAcc, float oldJrk, float oldCurr, float oldAccumErr, float action, float reward, float newPos, float newVel, float newAcc, float newJrk, float newCurr, float newAccumErr);
+
+    float computeReward(float pos, float vel, float acc, float jrk, float curr);
     void TaskTinyML(void *pvParameters);
     void setup();
 }

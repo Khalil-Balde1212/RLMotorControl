@@ -35,21 +35,22 @@ def main():
         'Angular Acceleration (rad/s²)', 
         'Angular Jerk (rad/s³)',
         'Current (A)',
-        'Control Signal'
+        'Control Signal',
+        'Reward'
     ]
     
     # Create and start the plotter
     plotter = SerialPlotter(ser, max_points=MAX_POINTS, graph_labels=graph_labels)
     
     print("Starting plotter... If no window appears, check your display settings.")
-    print("Data format expected: pos,vel,acc,jrk,current,control_signal")
+    print("Data format expected: pos,vel,acc,jrk,current,control_signal,reward")
     
     try:
         plotter.start(interval=100)  # Slower update rate
         print("Press Ctrl+C to stop the plotter.")
     finally:
         # Print maximum values recorded
-        if hasattr(plotter, 'data_streams') and len(plotter.data_streams) >= 6:
+        if hasattr(plotter, 'data_streams') and len(plotter.data_streams) >= 7:
             try:
                 max_velocity = max(plotter.data_streams[1]) if plotter.data_streams[1] else 0
                 max_acceleration = max(plotter.data_streams[2]) if plotter.data_streams[2] else 0
