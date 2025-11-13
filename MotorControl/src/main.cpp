@@ -20,7 +20,7 @@ void setup()
   
   xTaskCreate(TaskSensorPrints, "SensorPrintsTask", 512, NULL, 1, NULL);
   xTaskCreate(TaskSerialInput, "SerialInputTask", 256, NULL, 1, NULL);
-  xTaskCreate(TaskPIDControl, "PIDControlTask", 512, NULL, 2, NULL);
+  // xTaskCreate(TaskPIDControl, "PIDControlTask", 512, NULL, 2, NULL);
   vTaskStartScheduler();
 
   // If we get here, there was insufficient memory to create idle task
