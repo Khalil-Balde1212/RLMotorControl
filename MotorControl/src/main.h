@@ -9,4 +9,5 @@ void loop();
 
 void TaskSensorPrints(void *pvParameters);
 void TaskSerialInput(void *pvParameters);
+void TaskPIDControl(void* pvParameters);
 #endif
