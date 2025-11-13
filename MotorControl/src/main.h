@@ -3,7 +3,6 @@
 
 
 #include "motorControl.h"
-#include "tinyml.h"
 
 void setup();
 void loop();

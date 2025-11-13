@@ -1,5 +1,4 @@
 #include "motorControl.h"
-#include "tinyml.h"
 
 namespace Motor
 {
