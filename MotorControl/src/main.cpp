@@ -19,6 +19,7 @@ void setup()
   // TinyML::setup();
 
   xTaskCreate(TaskSensorPrints, "SensorPrintsTask", 512, NULL, 1, NULL);
+  xTaskCreate(TaskSerialInput, "SerialInputTask", 256, NULL, 1, NULL);
   vTaskStartScheduler();
 
   // If we get here, there was insufficient memory to create idle task
