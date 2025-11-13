@@ -89,51 +89,6 @@ float MotorState::readCurrentSensor() {
     return current;
 }
 
-void MotorState::runHardwareSelfTest() {
-    Serial.println("=== HARDWARE SELF-TEST ===");
-
-    // Test current sensor
-    Serial.println("Testing Current Sensor (ACS712)...");
-    int testReadings[10];
-    int minVal = 4095, maxVal = 0;
-    float avgVal = 0;
-
-    for (int i = 0; i < 10; i++) {
-        testReadings[i] = analogRead(CURRENT_SENSE_PIN);
-        minVal = min(minVal, testReadings[i]);
-        maxVal = max(maxVal, testReadings[i]);
-        avgVal += testReadings[i];
-        delay(10);
-    }
-    avgVal /= 10;
-
-    Serial.print("  ADC Range: ");
-    Serial.print(minVal);
-    Serial.print(" - ");
-    Serial.print(maxVal);
-    Serial.print(" (Avg: ");
-    Serial.print(avgVal, 1);
-    Serial.println(")");
-
-    float voltage = avgVal * ADC_REFERENCE_VOLTAGE / ADC_MAX_VALUE;
-    Serial.print("  Voltage: ");
-    Serial.print(voltage, 3);
-    Serial.println("V");
-
-    if (avgVal < 100) {
-        Serial.println("  ❌ FAIL: Sensor appears unpowered or disconnected");
-    } else if (avgVal > 4000) {
-        Serial.println("  ❌ FAIL: ADC reading too high - check wiring");
-    } else if (abs(voltage - 1.27f) > 0.3f) {
-        Serial.println("  ⚠️  WARNING: Voltage far from expected 1.27V center");
-        Serial.println("     May indicate incorrect sensor type or calibration needed");
-    } else {
-        Serial.println("  ✅ PASS: Sensor appears connected and powered");
-    }
-
-    Serial.println("=== END SELF-TEST ===");
-}
-
 void MotorState::updateMotorPosition(long currentEncoderPosition) {
     float rawPos = countsToRadians(currentEncoderPosition);
     motorPos = applyEMAFilter(rawPos, lastMotorPos, POSITION_EMA_GAIN);
@@ -180,15 +135,6 @@ void MotorState::updatePreviousState() {
     lastMotorCurrent = motorCurrent;
 }
 
-void MotorState::updateSinusoidalSetpoint(float time, float dt) {
-    // Update time and calculate sinusoidal setpoint
-    static float currentTime = 0.0f;
-    currentTime += dt;
-
-    float baseSetpoint = 3.1415f;  // π radians
-    motorSetpoint = baseSetpoint + setpointAmplitude * sin(2.0f * PI * setpointFrequency * currentTime);
-}
-
 void MotorState::updateAllStates(float dt) {
     // Read current encoder position (atomic operation)
     long currentPosition = encoderPosition;
@@ -199,9 +145,6 @@ void MotorState::updateAllStates(float dt) {
     updateMotorAcceleration(dt);
     updateMotorJerk(dt);
     updateMotorCurrent();
-
-    // Update sinusoidal setpoint
-    updateSinusoidalSetpoint(0.0f, dt); // Time is managed internally
 
     // Update PID error calculations
     updatePIDErrors();

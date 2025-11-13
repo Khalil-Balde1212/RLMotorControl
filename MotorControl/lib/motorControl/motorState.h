@@ -84,10 +84,6 @@ namespace MotorState
      */
     float countsToRadians(long counts);
 
-    /**
-     * Apply exponential moving average filter
-     */
-    float applyEMAFilter(float currentValue, float previousValue, float gain);
 
     /**
      * Read current sensor and convert to amperes
@@ -95,33 +91,13 @@ namespace MotorState
     float readCurrentSensor();
 
     /**
-     * Run hardware self-test to verify sensor connections
+     * Updates with EMA filtering
      */
-    void runHardwareSelfTest();
-
-    /**
-     * Update motor position with EMA filtering
-     */
+    float applyEMAFilter(float currentValue, float previousValue, float gain);
     void updateMotorPosition(long currentEncoderPosition);
-
-    /**
-     * Update motor velocity with EMA filtering
-     */
     void updateMotorVelocity(float dt);
-
-    /**
-     * Update motor acceleration with EMA filtering
-     */
     void updateMotorAcceleration(float dt);
-
-    /**
-     * Update motor jerk with EMA filtering
-     */
     void updateMotorJerk(float dt);
-
-    /**
-     * Update current reading with EMA filtering
-     */
     void updateMotorCurrent();
 
     /**
@@ -133,11 +109,6 @@ namespace MotorState
      * Store current state as previous state for next iteration
      */
     void updatePreviousState();
-
-    /**
-     * Update sinusoidal setpoint
-     */
-    void updateSinusoidalSetpoint(float time, float dt);
 
     /**
      * Perform complete state update cycle
