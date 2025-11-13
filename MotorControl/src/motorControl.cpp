@@ -53,9 +53,6 @@ void Motor::setup()
     // Create Encoder Task
     xTaskCreate(TaskSensorReads, "EncoderTask", 512, NULL, 1, NULL);
     xTaskCreate(TaskMotorControl, "MotorControlTask", 256, NULL, 1, NULL);
-
-    //serial tasks
-    xTaskCreate(TaskSerialInput, "SerialInputTask", 256, NULL, 1, NULL);
 }
 
 void Motor::encoderISR()
@@ -156,21 +153,5 @@ void Motor::TaskMotorControl(void *pvParameters)
     }
 }
 
-void Motor::TaskSerialInput(void *pvParameters)
-{
-    (void)pvParameters;
 
-    for (;;)
-    {
-        if (Serial.available())
-        {
-            String input = Serial.readStringUntil('\n');
-            int speed = input.toInt();
-            Motor::motorSpeed = speed;
-            Serial.print("Motor speed set to: ");
-            Serial.println(Motor::motorSpeed);
-        }
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-}
 

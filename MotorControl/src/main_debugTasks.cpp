@@ -33,3 +33,21 @@ void TaskSensorPrints(void *pvParameters)
         vTaskDelayUntil(&xLastWakeTime, delay);
     }
 }
+
+void TaskSerialInput(void *pvParameters)
+{
+    (void)pvParameters;
+
+    for (;;)
+    {
+        if (Serial.available())
+        {
+            String input = Serial.readStringUntil('\n');
+            int speed = input.toInt();
+            Motor::motorSpeed = speed;
+            Serial.print("Motor speed set to: ");
+            Serial.println(Motor::motorSpeed);
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+}

@@ -56,7 +56,6 @@ namespace Motor
     extern int motorSpeed; // Example variable for motor speed control
 
     void TaskMotorControl(void *pvParameters);
-    void TaskSerialInput(void *pvParameters);
 
 
     void setup();

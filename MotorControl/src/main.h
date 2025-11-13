@@ -8,4 +8,5 @@ void setup();
 void loop();
 
 void TaskSensorPrints(void *pvParameters);
+void TaskSerialInput(void *pvParameters);
 #endif
