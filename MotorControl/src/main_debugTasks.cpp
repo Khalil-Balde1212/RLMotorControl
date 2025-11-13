@@ -1,4 +1,5 @@
 #include "main.h"
+#include "../lib/motorControl/motorState.h"
 
 
 void TaskSensorPrints(void *pvParameters)
@@ -10,26 +11,27 @@ void TaskSensorPrints(void *pvParameters)
     for (;;)
     {
         TickType_t xLastWakeTime = xTaskGetTickCount();
-        Serial.print(Motor::motorPos);
+        Serial.print(MotorState::motorPos);
         Serial.print(",");
-        Serial.print(Motor::motorSetpoint);
+        Serial.print(MotorState::motorSetpoint);
         Serial.print(",");
-        Serial.print(Motor::motorVel);
+        Serial.print(MotorState::motorVel);
         Serial.print(",");
-        Serial.print(Motor::motorAcc);
+        Serial.print(MotorState::motorAcc);
         Serial.print(",");
-        Serial.print(Motor::motorJrk);
+        Serial.print(MotorState::motorJrk);
         Serial.print(",");
-        Serial.print(Motor::motorCurrent);
+        Serial.print(MotorState::motorCurrent);
         Serial.print(",");
         Serial.print(Motor::motorSpeed / 255.0f); // Print motor speed as percentage
         Serial.print(",");
-        Serial.print(Motor::propError);    // P error
+        Serial.print(MotorState::propError);    // P error
         Serial.print(",");
-        Serial.print(Motor::intError);     // I error
+        Serial.print(MotorState::intError);     // I error
         Serial.print(",");
-        Serial.print(Motor::derivError);   // D error
+        Serial.print(MotorState::derivError);   // D error
 
+        Serial.println();
         vTaskDelayUntil(&xLastWakeTime, delay);
     }
 }
@@ -43,10 +45,22 @@ void TaskSerialInput(void *pvParameters)
         if (Serial.available())
         {
             String input = Serial.readStringUntil('\n');
-            int speed = input.toInt();
-            Motor::motorSpeed = speed;
-            Serial.print("Motor speed set to: ");
-            Serial.println(Motor::motorSpeed);
+            input.trim(); // Remove whitespace
+
+            if (input == "test") {
+                MotorState::runHardwareSelfTest();
+            } else {
+                int speed = input.toInt();
+                if (speed != 0 || input == "0") {
+                    Motor::motorSpeed = speed;
+                    Serial.print("Motor speed set to: ");
+                    Serial.println(Motor::motorSpeed);
+                } else {
+                    Serial.println("Commands:");
+                    Serial.println("  <number> - Set motor speed (0-255)");
+                    Serial.println("  test - Run hardware self-test");
+                }
+            }
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }

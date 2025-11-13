@@ -16,8 +16,7 @@ void setup()
   }
 
   Motor::setup();
-  // TinyML::setup();
-
+  
   xTaskCreate(TaskSensorPrints, "SensorPrintsTask", 512, NULL, 1, NULL);
   xTaskCreate(TaskSerialInput, "SerialInputTask", 256, NULL, 1, NULL);
   vTaskStartScheduler();
