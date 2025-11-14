@@ -4,7 +4,8 @@
 void TaskSensorPrints(void *pvParameters)
 {
     (void)pvParameters;
-    int taskFrequencyHz = 10; // Reduced from 100Hz to 2Hz to reduce Serial load
+    Serial.println("Sensor prints task started!");
+    int taskFrequencyHz = 2; // Increased to 2Hz for debugging
     TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
 
     for (;;)

@@ -1,12 +1,19 @@
 #include <Arduino.h>
 #include <FreeRTOS_SAMD21.h>
-#include <BasicLinearAlgebra.h>
 
 #include "main.h"
 #include "motorControl.h"
 #include "PID.h"
 
-using namespace BLA;
+// PID control parameters
+float kp = 10.0f;    // Proportional gain
+float ki = 0.1f;     // Integral gain
+float kd = 1.0f;     // Derivative gain
+float maxIntegral = 100.0f;  // Maximum integral windup
+
+// PID state variables
+float integral = 0.0f;
+float previousError = 0.0f;
 
 void setup()
 {
@@ -17,10 +24,21 @@ void setup()
   }
 
   Motor::setup();
-  
+
+  Serial.println("Starting PID Motor Control...");
+  Serial.print("Target setpoint: ");
+  Serial.println(MotorState::motorSetpoint, 3);
+  Serial.print("PID gains: Kp=");
+  Serial.print(kp);
+  Serial.print(" Ki=");
+  Serial.print(ki);
+  Serial.print(" Kd=");
+  Serial.println(kd);
+  delay(1000); // Give time for serial to be ready
+
   xTaskCreate(TaskSensorPrints, "SensorPrintsTask", 512, NULL, 1, NULL);
   xTaskCreate(TaskSerialInput, "SerialInputTask", 256, NULL, 1, NULL);
-  // xTaskCreate(TaskPIDControl, "PIDControlTask", 512, NULL, 2, NULL);
+  xTaskCreate(TaskPIDControl, "PIDControlTask", 512, NULL, 2, NULL);
   vTaskStartScheduler();
 
   // If we get here, there was insufficient memory to create idle task
@@ -37,31 +55,27 @@ void loop()
 
 void TaskPIDControl(void* pvParameters) {
     (void)pvParameters;
-    // PD Controller - reduced gains for slower oscillations
-    // Ku = 850, but oscillations too fast, so using 10% of Ku
-    const float kp = 540.0f;     // Reduced proportional gain (10% of Ku)
-    const float ki = 10.0f;      // No integral
-    const float kd = 1.22f;     // Small derivative damping
-    const float maxIntegral = 100.0f;
+    Serial.println("PID Control task started!");
 
-    float integral = 0.0f;
-    float previousError = 0.0f;
     const int taskFrequencyHz = 100;
     TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
+    float dt = 1.0f / taskFrequencyHz; // Time step in seconds
 
     for (;;) {
         TickType_t xLastWakeTime = xTaskGetTickCount();
 
-        // Get current setpoint and measured position
-        float setpoint = MotorState::motorSetpoint;
-        float measured = MotorState::motorPos;
+        // Get current position
+        float currentPosition = MotorState::motorPos;
 
-        // Compute PID output
-        int pidOutput = computePID(setpoint, measured, integral, previousError,
-                                   kp, ki, kd, 1.0f / taskFrequencyHz, maxIntegral);
+        // Compute PID control action
+        int motorCommand = computePID(MotorState::motorSetpoint, currentPosition,
+                                    integral, previousError, kp, ki, kd, dt, maxIntegral);
 
-        // Update motor speed command
-        Motor::motorSpeed = constrain(pidOutput, -255, 255);
+        // Constrain to motor limits
+        motorCommand = constrain(motorCommand, -255, 255);
+
+        // Apply control to motor
+        Motor::motorSpeed = motorCommand;
 
         vTaskDelayUntil(&xLastWakeTime, delay);
     }

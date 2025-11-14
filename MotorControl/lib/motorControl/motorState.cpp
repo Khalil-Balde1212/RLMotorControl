@@ -65,7 +65,7 @@ void MotorState::initialize()
     intError = 0.0f;
     derivError = 0.0f;
 
-    motorSetpoint = 3.1415f; // π radians
+    motorSetpoint = 1.57f; // π/2 radians (90 degrees) - non-zero setpoint for testing
     setpointAmplitude = 3.14f;
     setpointFrequency = 0.1f;
 }
