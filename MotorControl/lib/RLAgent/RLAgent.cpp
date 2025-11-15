@@ -54,7 +54,7 @@ String SystemModel::getMatricesCSV() const {
 namespace SystemIdentification {
     SystemModel model = SystemModel();
     MatrixXd lastState;
-    float learningRate = 0.1f;
+    float learningRate = 0.5f;
     bool converged = false;
     float currentUpdateNorm = 0.0f;
     float currentErrorNorm = 0.0f;
@@ -82,7 +82,7 @@ namespace SystemIdentification {
         // Check for convergence
         static float prevUpdateNorm = 0.0f;
         static int stagnationCounter = 0;
-        float stagnationThreshold = 1e-4; // Adjust as needed
+        float stagnationThreshold = 2.5e-4; // Adjust as needed
         if (fabs(currentUpdateNorm - prevUpdateNorm) < stagnationThreshold) {
             stagnationCounter++;
             if (stagnationCounter > 100) {
