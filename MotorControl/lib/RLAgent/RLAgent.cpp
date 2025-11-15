@@ -82,7 +82,7 @@ namespace SystemIdentification {
         // Check for convergence
         static float prevUpdateNorm = 0.0f;
         static int stagnationCounter = 0;
-        float stagnationThreshold = 1e-3; // Adjust as needed
+        float stagnationThreshold = 1e-4; // Adjust as needed
         if (fabs(currentUpdateNorm - prevUpdateNorm) < stagnationThreshold) {
             stagnationCounter++;
             if (stagnationCounter > 100) {
