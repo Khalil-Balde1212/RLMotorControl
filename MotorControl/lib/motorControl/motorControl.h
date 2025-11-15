@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <FreeRTOS_SAMD21.h>
 #include "motorState.h"
 
 #ifndef MOTOR_CONTROL_H
@@ -24,8 +23,8 @@ namespace Motor
 
     // Setup and task functions
     void setup();
-    void TaskSensorReads(void *pvParameters);
-    void TaskMotorControl(void *pvParameters);
+    void TaskSensorReads();
+    void TaskMotorControl();
 }
 
 // Provide access to motor state variables through MotorState namespace

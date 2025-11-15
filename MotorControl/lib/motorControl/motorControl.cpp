@@ -1,4 +1,6 @@
 #include "motorControl.h"
+#include <mbed.h>
+#include <chrono>
 #include "motorState.h"
 
 // =============================================================================
@@ -43,44 +45,32 @@ void Motor::setup()
     // Configure ADC for 12-bit resolution
     analogReadResolution(12);
 
-    // Create FreeRTOS tasks
-    xTaskCreate(TaskSensorReads, "SensorTask", 256, NULL, 1, NULL);
-    xTaskCreate(TaskMotorControl, "MotorControlTask", 256, NULL, 1, NULL);
+    // Sensor and motor tasks should be started from main to allow centralized control
 }
 
 // =============================================================================
 // Task Functions
 // =============================================================================
 
-void Motor::TaskSensorReads(void *pvParameters)
+void Motor::TaskSensorReads()
 {
-    (void)pvParameters;
-
     // Task timing configuration
-    TickType_t delay = pdMS_TO_TICKS(1000 / SENSOR_TASK_FREQUENCY_HZ);
+    const int delayMs = 1000 / SENSOR_TASK_FREQUENCY_HZ;
     float dt = 1.0f / SENSOR_TASK_FREQUENCY_HZ; // Time step in seconds
 
-    for (;;) {
-        TickType_t xLastWakeTime = xTaskGetTickCount();
-
+    while (true) {
         // Update all motor states using the state management system
         MotorState::updateAllStates(dt);
-
         // Maintain task timing
-        vTaskDelayUntil(&xLastWakeTime, delay);
+    rtos::ThisThread::sleep_for(std::chrono::milliseconds(delayMs));
     }
 }
 
-void Motor::TaskMotorControl(void *pvParameters)
+void Motor::TaskMotorControl()
 {
-    (void)pvParameters;
+    const int delayMs = 1000 / MOTOR_CONTROL_TASK_FREQUENCY_HZ;
 
-    // Task timing configuration
-    TickType_t delay = pdMS_TO_TICKS(1000 / MOTOR_CONTROL_TASK_FREQUENCY_HZ);
-
-    for (;;) {
-        TickType_t xLastWakeTime = xTaskGetTickCount();
-
+    while (true) {
         // Control motor based on speed command
         if (Motor::motorSpeed > 0) {
             // Forward rotation
@@ -98,8 +88,7 @@ void Motor::TaskMotorControl(void *pvParameters)
             analogWrite(MOTOR_PIN_B, 0);
         }
 
-        // Maintain task timing
-        vTaskDelayUntil(&xLastWakeTime, delay);
+    rtos::ThisThread::sleep_for(std::chrono::milliseconds(delayMs));
     }
 }
 

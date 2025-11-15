@@ -1,5 +1,4 @@
 #include "PID.h"
-#include <FreeRTOS.h>
 
 int computePID(float setpoint, float measured, float& integral, float& previousError,
                float kp, float ki, float kd, float dt, float maxIntegral) {

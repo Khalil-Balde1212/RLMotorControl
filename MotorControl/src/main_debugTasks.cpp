@@ -1,16 +1,15 @@
 #include "main.h"
 #include "../lib/motorControl/motorState.h"
 
-void TaskSensorPrints(void *pvParameters)
+void TaskSensorPrints()
 {
-    (void)pvParameters;
+    // No parameters for Mbed threads
     Serial.println("Sensor prints task started!");
     int taskFrequencyHz = 2; // Increased to 2Hz for debugging
-    TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
+    int delayMs = 1000 / taskFrequencyHz;
 
     for (;;)
     {
-        TickType_t xLastWakeTime = xTaskGetTickCount();
         Serial.print(MotorState::motorPos);
         Serial.print(",");
         Serial.print(MotorState::motorSetpoint);
@@ -32,13 +31,13 @@ void TaskSensorPrints(void *pvParameters)
         Serial.print(MotorState::derivError); // D error
 
         Serial.println();
-        vTaskDelayUntil(&xLastWakeTime, delay);
+        delay(delayMs);
     }
 }
 
-void TaskSerialInput(void *pvParameters)
+void TaskSerialInput()
 {
-    (void)pvParameters;
+    // No parameters for Mbed threads
 
     for (;;)
     {
@@ -54,6 +53,6 @@ void TaskSerialInput(void *pvParameters)
                 Serial.println(Motor::motorSpeed);
             }
         }
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+    delay(10);
     }
 }

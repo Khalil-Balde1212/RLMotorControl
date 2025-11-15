@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <FreeRTOS_SAMD21.h>
+
 
 #include "main.h"
 #include "motorControl.h"
@@ -8,11 +8,23 @@
 
 #include "RLAgent.h"
 
-// Task handles
-TaskHandle_t systemIDTaskHandle;
-TaskHandle_t periodicModelUpdateTaskHandle;
-TaskHandle_t PIDTaskHandle;
-TaskHandle_t OscilateMotorTaskHandle;
+
+// Mbed OS thread objects
+#include <mbed.h>
+#include <chrono>
+rtos::Thread pidThread;
+rtos::Thread calibrationThread;
+rtos::Thread systemIDThread;
+rtos::Thread periodicModelUpdateThread;
+rtos::Thread oscilateMotorThread;
+rtos::Thread sensorThread;
+rtos::Thread motorThread;
+
+// Semaphores to control start/resume of threads (0 initial count -> block)
+rtos::Semaphore systemIDStart(0);
+rtos::Semaphore periodicModelStart(0);
+rtos::Semaphore pidStart(0);
+rtos::Semaphore oscStart(0);
 
 // PID control parameters
 float kp = 450.0f;			// Proportional gain
@@ -43,39 +55,26 @@ void setup()
 	delay(1000); // Allow time for setup stabilization
 	Serial.println("Delay done");
 
-	xTaskCreate(TaskCalibration, "CalibrationTask", 512, NULL, 1, NULL);
-	xTaskCreate(TaskSystemIdentification, "SystemIDTask", 512, NULL, 1, &systemIDTaskHandle);
-	vTaskSuspend(systemIDTaskHandle); // Suspend until calibration is done
-	
-	xTaskCreate(TaskPeriodicModelUpdates, "PeriodicModelUpdateTask", 512, NULL, 1, &periodicModelUpdateTaskHandle);
-	vTaskSuspend(periodicModelUpdateTaskHandle); // Suspend until calibration is done
+	// Start Mbed threads (those that should wait will block on semaphores)
+	calibrationThread.start(TaskCalibration);
+	systemIDThread.start(TaskSystemIdentification);
+	periodicModelUpdateThread.start(TaskPeriodicModelUpdates);
+	oscilateMotorThread.start(TaskOscilateMotor);
+	pidThread.start(TaskPIDControl);
+	sensorThread.start(Motor::TaskSensorReads);
+	motorThread.start(Motor::TaskMotorControl);
 
-	xTaskCreate(TaskOscilateMotor, "OscilateMotorTask", 128, NULL, 1, &OscilateMotorTaskHandle);
-	vTaskSuspend(OscilateMotorTaskHandle); // Suspend until system identification is done
-
-
-	// xTaskCreate(TaskSensorPrints, "SensorPrintsTask", 512, NULL, 1, NULL);
-	xTaskCreate(TaskSerialInput, "SerialInputTask", 256, NULL, 1, NULL);
-	xTaskCreate(TaskPIDControl, "PIDControlTask", 512, NULL, 2, &PIDTaskHandle);
-	vTaskSuspend(PIDTaskHandle); // Suspend until system identification is done
-
-	Serial.println("Tasks created, starting scheduler");
-	vTaskStartScheduler();
-
-	// If we get here, there was insufficient memory to create idle task
-	Serial.println("ERROR: Scheduler failed to start!");
-	while (1)
-		;
+	Serial.println("Tasks created");
 }
 
 void loop()
 {
-	// Empty - all work done in FreeRTOS tasks
+	// Empty - all work done in threads
 }
 
-void TaskCalibration(void *pvParameters)
+void TaskCalibration()
 {
-	(void)pvParameters;
+	// Calibration thread: runs immediately and signals others when done
 	Serial.println("Starting motor calibration...");
 
 	// Calibration: Sweep sine waves with increasing frequency to estimate limits
@@ -93,7 +92,7 @@ void TaskCalibration(void *pvParameters)
 		float motorSig = amplitude * sin(2.0f * PI * freq * t);
 		Motor::motorSpeed = (int)motorSig;
 
-		vTaskDelay(pdMS_TO_TICKS(sweepTime * 1000 / samples));
+		rtos::ThisThread::sleep_for(std::chrono::milliseconds((int)(sweepTime * 1000 / samples)));
 
 		maxVel = max(maxVel, abs(MotorState::motorVel));
 		maxAcc = max(maxAcc, abs(MotorState::motorAcc));
@@ -107,48 +106,39 @@ void TaskCalibration(void *pvParameters)
 	Motor::motorSpeed = 0;
 	Serial.println("Calibration complete. MAX_VELOCITY: " + String(MAX_VELOCITY) + " MAX_ACC: " + String(MAX_ACCELERATION) + " MAX_JERK: " + String(MAX_JERK));
 
-	// Resume system identification task
-	vTaskResume(systemIDTaskHandle);
-	vTaskResume(periodicModelUpdateTaskHandle);
-	vTaskSuspend(NULL); // Suspend calibration task
+	// Signal other threads that calibration is complete
+	systemIDStart.release();
+	periodicModelStart.release();
+	// end calibration thread
+	return;
 }
 
-void TaskPIDControl(void *pvParameters)
+void TaskPIDControl()
 {
-	(void)pvParameters;
+	// Wait until system identification completes
+	pidStart.acquire();
 	Serial.println("PID Control task started!");
-
 	const int taskFrequencyHz = 100;
-	TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
 	float dt = 1.0f / taskFrequencyHz; // Time step in seconds
-
-	for (;;)
-	{
-		TickType_t xLastWakeTime = xTaskGetTickCount();
-
+	while (true) {
 		// Get current position
 		float currentPosition = MotorState::motorPos;
-
 		// Compute PID control action
 		int motorCommand = computePID(MotorState::motorSetpoint, currentPosition,
 									  integral, previousError, kp, ki, kd, dt, maxIntegral);
-
 		// Constrain to motor limits
 		motorCommand = constrain(motorCommand, -255, 255);
-
 		// Apply control to motor
 		Motor::motorSpeed = motorCommand;
-
-		vTaskDelayUntil(&xLastWakeTime, delay);
+		rtos::ThisThread::sleep_for(std::chrono::milliseconds(1000 / taskFrequencyHz));
 	}
 }
 
-void TaskSystemIdentification(void *pvParameters)
+void TaskSystemIdentification()
 {
-	(void)pvParameters;
-
+	// Wait until calibration allows us to run
+	systemIDStart.acquire();
 	const int taskFrequencyHz = 50;
-	TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
 	Serial.println("System Identification task started!");
 
 	using namespace SystemIdentification;
@@ -156,7 +146,7 @@ void TaskSystemIdentification(void *pvParameters)
 	MatrixXd input(model.NUMBER_OF_CONTROL, 1);
 	for (;;)
 	{
-		TickType_t xLastWakeTime = xTaskGetTickCount();
+	// Tick-type timing not needed. We'll step with sleep
 
 		// Calculate time based on task iterations
 		static float timeSec = 0.0f;
@@ -202,22 +192,22 @@ void TaskSystemIdentification(void *pvParameters)
 			Serial.println(" seconds");
 			Motor::motorSpeed = 0;
 			model.printMatrices();
-			vTaskResume(PIDTaskHandle);
-			vTaskResume(OscilateMotorTaskHandle);
+			pidStart.release();
+			oscStart.release();
 			learningRate = 0.05f;
-			vTaskSuspend(NULL);
+			return; // end system identification thread
 		}
 
-		vTaskDelayUntil(&xLastWakeTime, delay);
+	rtos::ThisThread::sleep_for(std::chrono::milliseconds(1000 / taskFrequencyHz));
 	}
 }
 
-void TaskPeriodicModelUpdates(void *pvParameters)
+void TaskPeriodicModelUpdates()
 {
-	(void)pvParameters;
+	// Wait for calibration to finish before starting
+	periodicModelStart.acquire();
 	Serial.println("Periodic update task started!");
 	const int taskFrequencyHz = 50; // 10 Hz
-	TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
 
 	int count = 0;
 
@@ -225,7 +215,7 @@ void TaskPeriodicModelUpdates(void *pvParameters)
 	MatrixXd input(model.NUMBER_OF_CONTROL, 1);
 	for (;;)
 	{
-		TickType_t xLastWakeTime = xTaskGetTickCount();
+	// Maintain loop frequency by sleeping
 
 		MatrixXd currentState(model.NUMBER_OF_STATES, 1);
 		float pos = isnan(MotorState::motorPos) ? 0.0f : MotorState::motorPos;
@@ -254,21 +244,22 @@ void TaskPeriodicModelUpdates(void *pvParameters)
 			count = 0;
 		}
 
-		vTaskDelayUntil(&xLastWakeTime, delay);
+	rtos::ThisThread::sleep_for(std::chrono::milliseconds(1000 / taskFrequencyHz));
 	}
 }
 
 
-void TaskOscilateMotor(void *pvParameters)
+void TaskOscilateMotor()
 {
-	(void)pvParameters;
+	// Wait until system id converges
+	oscStart.acquire();
 	Serial.println("Motor oscillation task started!");
 
 	for (;;)
 	{
 		MotorState::motorSetpoint = 3.14f;
-		vTaskDelay(pdMS_TO_TICKS(2000));
+	rtos::ThisThread::sleep_for(std::chrono::milliseconds(2000));
 		MotorState::motorSetpoint = -3.14f;
-		vTaskDelay(pdMS_TO_TICKS(2000));
+	rtos::ThisThread::sleep_for(std::chrono::milliseconds(2000));
 	}
 }

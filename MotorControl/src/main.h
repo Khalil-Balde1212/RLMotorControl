@@ -7,14 +7,14 @@
 void setup();
 void loop();
 
-void TaskSensorPrints(void *pvParameters);
-void TaskSerialInput(void *pvParameters);
+void TaskSensorPrints();
+void TaskSerialInput();
 
-void TaskPIDControl(void* pvParameters);
-void TaskOscilateMotor(void* pvParameters);
+void TaskPIDControl();
+void TaskOscilateMotor();
 
-void TaskCalibration(void *pvParameters);
-void TaskSystemIdentification(void* pvParameters);
+void TaskCalibration();
+void TaskSystemIdentification();
 
-void TaskPeriodicModelUpdates(void* pvParameters);
+void TaskPeriodicModelUpdates();
 #endif
