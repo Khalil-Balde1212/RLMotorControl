@@ -2,6 +2,19 @@
 #include "motorControl.h"
 
 // =============================================================================
+// Global Variables
+// =============================================================================
+
+float MAX_POSITION = 2.0f * PI * 1000; // Arbitrary large value
+float MIN_POSITION = -MAX_POSITION;
+float MAX_VELOCITY = 1000.0f;
+float MIN_VELOCITY = -MAX_VELOCITY;
+float MAX_ACCELERATION = 5000.0f;
+float MIN_ACCELERATION = -MAX_ACCELERATION;
+float MAX_JERK = 20000.0f;
+float MIN_JERK = -MAX_JERK;
+
+// =============================================================================
 // Namespace Variables
 // =============================================================================
 

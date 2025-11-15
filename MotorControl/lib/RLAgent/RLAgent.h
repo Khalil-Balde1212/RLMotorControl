@@ -17,6 +17,7 @@ struct SystemModel{
     MatrixXd predictNextState(const MatrixXd& currentState, const MatrixXd& input);
 
     void printMatrices() const;
+    String getMatricesCSV() const;
 };
 
 namespace SystemIdentification {

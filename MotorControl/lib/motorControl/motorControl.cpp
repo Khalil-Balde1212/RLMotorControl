@@ -5,9 +5,6 @@
 // Constants and Configuration
 // =============================================================================
 
-// Task frequencies (Hz)
-const int SENSOR_TASK_FREQUENCY_HZ = 100;
-const int MOTOR_CONTROL_TASK_FREQUENCY_HZ = 100;
 
 // =============================================================================
 // Motor Control Namespace
@@ -47,7 +44,7 @@ void Motor::setup()
     analogReadResolution(12);
 
     // Create FreeRTOS tasks
-    xTaskCreate(TaskSensorReads, "SensorTask", 512, NULL, 1, NULL);
+    xTaskCreate(TaskSensorReads, "SensorTask", 256, NULL, 1, NULL);
     xTaskCreate(TaskMotorControl, "MotorControlTask", 256, NULL, 1, NULL);
 }
 

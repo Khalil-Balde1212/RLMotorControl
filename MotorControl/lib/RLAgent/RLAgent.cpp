@@ -5,8 +5,8 @@
 
 using namespace Eigen;
 void SystemModel::initializeModel() {
-    stateTransition = MatrixXd::Identity(NUMBER_OF_STATES, NUMBER_OF_STATES);
-    responseVector = MatrixXd::Zero(NUMBER_OF_STATES, NUMBER_OF_CONTROL);
+    stateTransition = MatrixXd::Ones(NUMBER_OF_STATES, NUMBER_OF_STATES);
+    responseVector = MatrixXd::Ones(NUMBER_OF_STATES, NUMBER_OF_CONTROL);
 }
 
 MatrixXd SystemModel::predictNextState(const MatrixXd& currentState, const MatrixXd& input) {
@@ -33,11 +33,28 @@ void SystemModel::printMatrices() const {
     }
 }
 
+String SystemModel::getMatricesCSV() const {
+    String csv = "";
+    // State Transition Matrix (4x4)
+    for (int i = 0; i < stateTransition.rows(); ++i) {
+        for (int j = 0; j < stateTransition.cols(); ++j) {
+            csv += String(stateTransition(i, j), 6) + ",";
+        }
+    }
+    // Response Vector (4x1)
+    for (int i = 0; i < responseVector.rows(); ++i) {
+        for (int j = 0; j < responseVector.cols(); ++j) {
+            csv += String(responseVector(i, j), 6) + ",";
+        }
+    }
+    return csv;
+}
+
 
 namespace SystemIdentification {
     SystemModel model = SystemModel();
     MatrixXd lastState;
-    float learningRate = 0.0001f;
+    float learningRate = 0.1f;
     bool converged = false;
     float currentUpdateNorm = 0.0f;
     float currentErrorNorm = 0.0f;
@@ -63,15 +80,18 @@ namespace SystemIdentification {
         currentUpdateNorm = updateST.norm() + updateRV.norm(); // Combined update norm as convergence rate
 
         // Check for convergence
-        static int convergenceCounter = 0;
-        if (error.norm() < 0.01) {
-            convergenceCounter++;
-            if (convergenceCounter > 100) {
-                converged = true;
+        static float prevUpdateNorm = 0.0f;
+        static int stagnationCounter = 0;
+        float stagnationThreshold = 1e-3; // Adjust as needed
+        if (fabs(currentUpdateNorm - prevUpdateNorm) < stagnationThreshold) {
+            stagnationCounter++;
+            if (stagnationCounter > 100) {
+            converged = true;
             }
         } else {
-            convergenceCounter = 0;
+            stagnationCounter = 0;
         }
+        prevUpdateNorm = currentUpdateNorm;
 
         lastState = currentState;
     }

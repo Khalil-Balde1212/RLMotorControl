@@ -12,6 +12,11 @@
 #define MOTOR_PIN_B 6
 #define CURRENT_SENSE_PIN A0
 
+
+// Task frequencies (Hz)
+#define SENSOR_TASK_FREQUENCY_HZ 50
+#define MOTOR_CONTROL_TASK_FREQUENCY_HZ 1000
+
 namespace Motor
 {
     // Control output

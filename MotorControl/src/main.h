@@ -11,6 +11,6 @@ void TaskSensorPrints(void *pvParameters);
 void TaskSerialInput(void *pvParameters);
 void TaskPIDControl(void* pvParameters);
 
-
+void TaskCalibration(void *pvParameters);
 void TaskSystemIdentification(void* pvParameters);
 #endif
