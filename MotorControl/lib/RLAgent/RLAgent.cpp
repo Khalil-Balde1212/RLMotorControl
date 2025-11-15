@@ -82,10 +82,11 @@ namespace SystemIdentification {
         // Check for convergence
         static float prevUpdateNorm = 0.0f;
         static int stagnationCounter = 0;
-        float stagnationThreshold = 2.5e-4; // Adjust as needed
-        if (fabs(currentUpdateNorm - prevUpdateNorm) < stagnationThreshold) {
+        float stagnationThreshold = 5e-4; // Adjust as needed
+        float accuracyThreshold = 1e-2; // Adjust as needed
+        if (fabs(currentUpdateNorm - prevUpdateNorm) < stagnationThreshold || fabs(currentErrorNorm) < accuracyThreshold) {
             stagnationCounter++;
-            if (stagnationCounter > 100) {
+            if (stagnationCounter > 50) {
             converged = true;
             }
         } else {
@@ -96,3 +97,5 @@ namespace SystemIdentification {
         lastState = currentState;
     }
 }
+
+
