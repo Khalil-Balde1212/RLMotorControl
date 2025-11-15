@@ -13,4 +13,6 @@ void TaskPIDControl(void* pvParameters);
 
 void TaskCalibration(void *pvParameters);
 void TaskSystemIdentification(void* pvParameters);
+
+void TaskPeriodicModelUpdates(void* pvParameters);
 #endif

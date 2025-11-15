@@ -4,28 +4,34 @@
 #include <ArduinoEigenDense.h>
 
 using namespace Eigen;
-void SystemModel::initializeModel() {
+void SystemModel::initializeModel()
+{
     stateTransition = MatrixXd::Ones(NUMBER_OF_STATES, NUMBER_OF_STATES);
     responseVector = MatrixXd::Ones(NUMBER_OF_STATES, NUMBER_OF_CONTROL);
 }
 
-MatrixXd SystemModel::predictNextState(const MatrixXd& currentState, const MatrixXd& input) {
+MatrixXd SystemModel::predictNextState(const MatrixXd &currentState, const MatrixXd &input)
+{
     return stateTransition * currentState + responseVector * input;
 }
 
-
-void SystemModel::printMatrices() const {
+void SystemModel::printMatrices() const
+{
     Serial.println("State Transition Matrix:");
-    for (int i = 0; i < stateTransition.rows(); ++i) {
-        for (int j = 0; j < stateTransition.cols(); ++j) {
+    for (int i = 0; i < stateTransition.rows(); ++i)
+    {
+        for (int j = 0; j < stateTransition.cols(); ++j)
+        {
             Serial.print(stateTransition(i, j), 6);
             Serial.print("\t");
         }
         Serial.println();
     }
     Serial.println("Response Vector:");
-    for (int i = 0; i < responseVector.rows(); ++i) {
-        for (int j = 0; j < responseVector.cols(); ++j) {
+    for (int i = 0; i < responseVector.rows(); ++i)
+    {
+        for (int j = 0; j < responseVector.cols(); ++j)
+        {
             Serial.print(responseVector(i, j), 6);
             Serial.print("\t");
         }
@@ -33,25 +39,30 @@ void SystemModel::printMatrices() const {
     }
 }
 
-String SystemModel::getMatricesCSV() const {
+String SystemModel::getMatricesCSV() const
+{
     String csv = "";
     // State Transition Matrix (4x4)
-    for (int i = 0; i < stateTransition.rows(); ++i) {
-        for (int j = 0; j < stateTransition.cols(); ++j) {
+    for (int i = 0; i < stateTransition.rows(); ++i)
+    {
+        for (int j = 0; j < stateTransition.cols(); ++j)
+        {
             csv += String(stateTransition(i, j), 6) + ",";
         }
     }
     // Response Vector (4x1)
-    for (int i = 0; i < responseVector.rows(); ++i) {
-        for (int j = 0; j < responseVector.cols(); ++j) {
+    for (int i = 0; i < responseVector.rows(); ++i)
+    {
+        for (int j = 0; j < responseVector.cols(); ++j)
+        {
             csv += String(responseVector(i, j), 6) + ",";
         }
     }
     return csv;
 }
 
-
-namespace SystemIdentification {
+namespace SystemIdentification
+{
     SystemModel model = SystemModel();
     MatrixXd lastState;
     float learningRate = 0.5f;
@@ -59,20 +70,22 @@ namespace SystemIdentification {
     float currentUpdateNorm = 0.0f;
     float currentErrorNorm = 0.0f;
 
-    void initialize() {
+    void initialize()
+    {
         model.initializeModel();
         lastState = MatrixXd::Zero(model.NUMBER_OF_STATES, 1);
     }
 
-    void update(MatrixXd currentState, MatrixXd input) {
+    void update(MatrixXd currentState, MatrixXd input)
+    {
         // predict next state
         MatrixXd predictedState = model.predictNextState(lastState, input);
 
         // compute error
         MatrixXd error = currentState - predictedState;
         currentErrorNorm = error.norm();
-        
-        //update StateTransition and ResponseVector matrices based on error
+
+        // update StateTransition and ResponseVector matrices based on error
         MatrixXd updateST = learningRate * (error * lastState.transpose());
         MatrixXd updateRV = learningRate * (error * input.transpose());
         model.stateTransition = model.stateTransition + updateST;
@@ -80,22 +93,41 @@ namespace SystemIdentification {
         currentUpdateNorm = updateST.norm() + updateRV.norm(); // Combined update norm as convergence rate
 
         // Check for convergence
-        static float prevUpdateNorm = 0.0f;
-        static int stagnationCounter = 0;
-        float stagnationThreshold = 5e-4; // Adjust as needed
-        float accuracyThreshold = 1e-2; // Adjust as needed
-        if (fabs(currentUpdateNorm - prevUpdateNorm) < stagnationThreshold || fabs(currentErrorNorm) < accuracyThreshold) {
-            stagnationCounter++;
-            if (stagnationCounter > 50) {
-            converged = true;
+        static int accuracyCounter = 0;
+        static bool accuracyConverged = false;
+        float accuracyThreshold = 3e-2; // Adjust as needed
+        if (fabs(currentErrorNorm) < accuracyThreshold)
+        {
+            if (++accuracyCounter >= 10)  // Require 10 consecutive accurate iterations
+            {
+                accuracyConverged = true;
             }
-        } else {
+        }
+        else
+        {
+            accuracyCounter = 0;
+        }
+
+        static int stagnationCounter = 0;
+        static bool stagnationConverged = false;
+        float stagnationThreshold = 7e-2; // Adjust as needed
+        static float prevErrorNorm = 0.0f;
+        if (fabs(prevErrorNorm - currentErrorNorm) < stagnationThreshold)
+        {
+            stagnationCounter++;
+            if (stagnationCounter > 50)
+            {
+                stagnationConverged = true;
+            }
+        }
+        else
+        {
             stagnationCounter = 0;
         }
-        prevUpdateNorm = currentUpdateNorm;
+
+        converged = accuracyConverged && stagnationConverged;
+        prevErrorNorm = currentErrorNorm;
 
         lastState = currentState;
     }
 }
-
-

@@ -10,11 +10,13 @@
 
 // Task handles
 TaskHandle_t systemIDTaskHandle;
+TaskHandle_t periodicModelUpdateTaskHandle;
+TaskHandle_t PIDTaskHandle;
 
 // PID control parameters
-float kp = 10.0f;			// Proportional gain
-float ki = 0.1f;			// Integral gain
-float kd = 1.0f;			// Derivative gain
+float kp = 450.0f;			// Proportional gain
+float ki = 100.0f;			// Integral gain
+float kd = 12.0f;			// Derivative gain
 float maxIntegral = 100.0f; // Maximum integral windup
 
 // PID state variables
@@ -43,9 +45,17 @@ void setup()
 	xTaskCreate(TaskCalibration, "CalibrationTask", 512, NULL, 1, NULL);
 	xTaskCreate(TaskSystemIdentification, "SystemIDTask", 512, NULL, 1, &systemIDTaskHandle);
 	vTaskSuspend(systemIDTaskHandle); // Suspend until calibration is done
+	
+	xTaskCreate(TaskPeriodicModelUpdates, "PeriodicModelUpdateTask", 512, NULL, 1, &periodicModelUpdateTaskHandle);
+	vTaskSuspend(periodicModelUpdateTaskHandle); // Suspend until calibration is done
+
+
+
 	// xTaskCreate(TaskSensorPrints, "SensorPrintsTask", 512, NULL, 1, NULL);
 	xTaskCreate(TaskSerialInput, "SerialInputTask", 256, NULL, 1, NULL);
-	// xTaskCreate(TaskPIDControl, "PIDControlTask", 512, NULL, 2, NULL);
+	xTaskCreate(TaskPIDControl, "PIDControlTask", 512, NULL, 2, &PIDTaskHandle);
+	vTaskSuspend(PIDTaskHandle); // Suspend until system identification is done
+
 	Serial.println("Tasks created, starting scheduler");
 	vTaskStartScheduler();
 
@@ -60,31 +70,33 @@ void loop()
 	// Empty - all work done in FreeRTOS tasks
 }
 
-void TaskCalibration(void *pvParameters) {
+void TaskCalibration(void *pvParameters)
+{
 	(void)pvParameters;
 	Serial.println("Starting motor calibration...");
 
 	// Calibration: Sweep sine waves with increasing frequency to estimate limits
 	float maxVel = 0, maxAcc = 0, maxJrk = 0;
-	const float startFreq = 0.1f; // Hz
-	const float endFreq = 10.0f;   // Hz
-	const float sweepTime = 10.0f; // seconds
+	const float startFreq = 0.1f;	// Hz
+	const float endFreq = 10.0f;	// Hz
+	const float sweepTime = 10.0f;	// seconds
 	const float amplitude = 255.0f; // Full range
-	const int samples = 100; // Samples per sweep
+	const int samples = 100;		// Samples per sweep
 
-	for (int i = 0; i < samples; i++) {
+	for (int i = 0; i < samples; i++)
+	{
 		float t = (float)i / (float)samples * sweepTime;
 		float freq = startFreq + (endFreq - startFreq) * (float)i / (float)(samples - 1);
 		float motorSig = amplitude * sin(2.0f * PI * freq * t);
 		Motor::motorSpeed = (int)motorSig;
-		
+
 		vTaskDelay(pdMS_TO_TICKS(sweepTime * 1000 / samples));
-		
+
 		maxVel = max(maxVel, abs(MotorState::motorVel));
 		maxAcc = max(maxAcc, abs(MotorState::motorAcc));
 		maxJrk = max(maxJrk, abs(MotorState::motorJrk));
 	}
-	
+
 	MAX_POSITION = 100.0f; // Assume known max position (radians)
 	MAX_VELOCITY = maxVel;
 	MAX_ACCELERATION = maxAcc;
@@ -94,10 +106,11 @@ void TaskCalibration(void *pvParameters) {
 
 	// Resume system identification task
 	vTaskResume(systemIDTaskHandle);
+	vTaskResume(periodicModelUpdateTaskHandle);
 	vTaskSuspend(NULL); // Suspend calibration task
 }
 
-void TaskPIDControl(void* pvParameters)
+void TaskPIDControl(void *pvParameters)
 {
 	(void)pvParameters;
 	Serial.println("PID Control task started!");
@@ -147,7 +160,70 @@ void TaskSystemIdentification(void *pvParameters)
 		static float timeSec = 0.0f;
 		timeSec += 1.0f / taskFrequencyHz;
 
-		// Construct current state and input matrices
+		// Generate a sine wave input with random amplitudes
+		float amplitude = random(50, 100) / 100.0f; // Random amplitude 0.5 to 1.0
+		// Chirp signal: frequency sweeps from 0.2 Hz to 1.5 Hz over time
+		float chirpStartFreq = 0.2f;
+		float chirpEndFreq = 1.5f;
+		float chirpDuration = 30.0f; // seconds for full sweep
+		float chirpFreq = chirpStartFreq + (chirpEndFreq - chirpStartFreq) * min(timeSec / chirpDuration, 1.0f);
+		float frequency = chirpFreq;
+
+		// Chirp signal for second frequency: sweeps from 0.33 Hz to 2.0 Hz over time
+		float amplitude2 = random(30, 80) / 100.0f; // Random amplitude 0.3 to 0.8
+		float chirp2StartFreq = 0.33f;
+		float chirp2EndFreq = 2.0f;
+		float chirp2Duration = 25.0f;
+		float frequency2 = chirp2StartFreq + (chirp2EndFreq - chirp2StartFreq) * min(timeSec / chirp2Duration, 1.0f);
+		float motorSig = amplitude * sin(2 * PI * frequency * timeSec);
+		motorSig += (amplitude2 / 2.0f) * sin(2 * PI * frequency2 * timeSec);
+
+		// Third chirp signal: sweeps from 0.5 Hz to 2.5 Hz over time
+		float amplitude3 = random(20, 60) / 100.0f; // Random amplitude 0.2 to 0.6
+		float chirp3StartFreq = 0.5f;
+		float chirp3EndFreq = 2.5f;
+		float chirp3Duration = 20.0f;
+		float frequency3 = chirp3StartFreq + (chirp3EndFreq - chirp3StartFreq) * min(timeSec / chirp3Duration, 1.0f);
+		motorSig += (amplitude3 / 3.0f) * sin(2 * PI * frequency3 * timeSec);
+
+		motorSig = constrain(motorSig, -1.0f, 1.0f);
+		Motor::motorSpeed = static_cast<int>(motorSig * 255.0f);
+		input(0, 0) = motorSig; // Use normalized input for learning
+
+		// learningRate = 0.01f / (1.0f + currentUpdateNorm);  // Scales down as convergence slows
+		learningRate *= 0.999f; // Gradually decrease learning rate
+		if (converged)
+		{
+			Serial.println("System identification converged!");
+			Serial.print("Time elapsed: ");
+			Serial.print(timeSec, 2);
+			Serial.println(" seconds");
+			Motor::motorSpeed = 0;
+			model.printMatrices();
+			vTaskResume(PIDTaskHandle);
+			learningRate = 0.01f;
+			vTaskSuspend(NULL);
+		}
+
+		vTaskDelayUntil(&xLastWakeTime, delay);
+	}
+}
+
+void TaskPeriodicModelUpdates(void *pvParameters)
+{
+	(void)pvParameters;
+	Serial.println("Periodic update task started!");
+	const int taskFrequencyHz = 50; // 10 Hz
+	TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
+
+	int count = 0;
+
+	using namespace SystemIdentification;
+	MatrixXd input(model.NUMBER_OF_CONTROL, 1);
+	for (;;)
+	{
+		TickType_t xLastWakeTime = xTaskGetTickCount();
+
 		MatrixXd currentState(model.NUMBER_OF_STATES, 1);
 		float pos = isnan(MotorState::motorPos) ? 0.0f : MotorState::motorPos;
 		float vel = isnan(MotorState::motorVel) ? 0.0f : MotorState::motorVel;
@@ -159,51 +235,10 @@ void TaskSystemIdentification(void *pvParameters)
 		currentState(2, 0) = acc / MAX_ACCELERATION;
 		currentState(3, 0) = jrk / MAX_JERK;
 
-		// Generate a sine wave input with random amplitudes
-		float amplitude = random(50, 100) / 100.0f; // Random amplitude 0.5 to 1.0
-		// Chirp signal: frequency sweeps from 0.2 Hz to 1.5 Hz over time
-		float chirpStartFreq = 0.2f;
-		float chirpEndFreq = 1.5f;
-		float chirpDuration = 30.0f; // seconds for full sweep
-		float chirpFreq = chirpStartFreq + (chirpEndFreq - chirpStartFreq) * min(timeSec / chirpDuration, 1.0f);
-		float frequency = chirpFreq;
-
-
-		// Chirp signal for second frequency: sweeps from 0.33 Hz to 2.0 Hz over time
-		float amplitude2 = random(30, 80) / 100.0f; // Random amplitude 0.3 to 0.8
-		float chirp2StartFreq = 0.33f;
-		float chirp2EndFreq = 2.0f;
-		float chirp2Duration = 25.0f;
-		float frequency2 = chirp2StartFreq + (chirp2EndFreq - chirp2StartFreq) * min(timeSec / chirp2Duration, 1.0f);
-		float motorSig = amplitude * sin(2 * PI * frequency * timeSec);
-		motorSig += (amplitude2 / 2.0f) * sin(2 * PI * frequency2 * timeSec);
-		
-		// Third chirp signal: sweeps from 0.5 Hz to 2.5 Hz over time
-		float amplitude3 = random(20, 60) / 100.0f; // Random amplitude 0.2 to 0.6
-		float chirp3StartFreq = 0.5f;
-		float chirp3EndFreq = 2.5f;
-		float chirp3Duration = 20.0f;
-		float frequency3 = chirp3StartFreq + (chirp3EndFreq - chirp3StartFreq) * min(timeSec / chirp3Duration, 1.0f);
-		motorSig += (amplitude3 / 3.0f) * sin(2 * PI * frequency3 * timeSec);
-
-
-		motorSig = constrain(motorSig, -1.0f, 1.0f);
-		Motor::motorSpeed = static_cast<int>(motorSig * 255.0f);
-		input(0, 0) = motorSig; // Use normalized input for learning
+		input(0, 0) = Motor::motorSpeed / 255.0f; // Normalized input
 
 		// Update system model
 		update(currentState, input);
-		// learningRate = 0.01f / (1.0f + currentUpdateNorm);  // Scales down as convergence slows
-		learningRate *= 0.999f; // Gradually decrease learning rate
-		if (converged) {
-			Serial.println("System identification converged!");
-			Serial.print("Time elapsed: ");
-			Serial.print(timeSec, 2);
-			Serial.println(" seconds");
-			Motor::motorSpeed = 0;
-			model.printMatrices();
-			vTaskSuspend(NULL);
-		}
 
 		count++;
 		if (count >= 10)
