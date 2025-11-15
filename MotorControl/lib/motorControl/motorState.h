@@ -34,6 +34,16 @@ const float ACCELERATION_EMA_GAIN = 1.0f;  // No filtering
 const float JERK_EMA_GAIN = 1.0f;          // No filtering
 const float CURRENT_EMA_GAIN = 0.1f;       // Reduced for smoother current readings
 
+
+const float MAX_POSITION = 2.0f * PI * 1000; // Arbitrary large value to prevent overflow
+const float MIN_POSITION = -MAX_POSITION;
+const float MAX_VELOCITY = 500.0f; // rad/s
+const float MIN_VELOCITY = -MAX_VELOCITY;
+const float MAX_ACCELERATION = 1000.0f; // rad/s²
+const float MIN_ACCELERATION = -MAX_ACCELERATION;
+const float MAX_JERK = 5000.0f; // rad/s³
+const float MIN_JERK = -MAX_JERK;
+
 // =============================================================================
 // Motor State Namespace
 // =============================================================================

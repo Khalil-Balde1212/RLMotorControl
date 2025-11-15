@@ -48,18 +48,18 @@ void MotorState::initialize()
     encoderPosition = 0;
     lastEncoded = 0;
 
-    motorPos = 0.0f;
-    motorVel = 0.0f;
-    motorAcc = 0.0f;
-    motorJrk = 0.0f;
+    motorPos = 1e-6;
+    motorVel = 1e-6;
+    motorAcc = 1e-6;
+    motorJrk = 1e-6;
 
-    lastMotorPos = 0.0f;
-    lastMotorVel = 0.0f;
-    lastMotorAcc = 0.0f;
-    lastMotorJrk = 0.0f;
+    lastMotorPos = 1e-6;
+    lastMotorVel = 1e-6;
+    lastMotorAcc = 1e-6;
+    lastMotorJrk = 1e-6;
 
-    motorCurrent = 0.0f;
-    lastMotorCurrent = 0.0f;
+    motorCurrent = 1e-6;
+    lastMotorCurrent = 1e-6;
 
     propError = 0.0f;
     intError = 0.0f;
