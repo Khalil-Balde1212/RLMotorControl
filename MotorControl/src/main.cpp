@@ -12,6 +12,7 @@
 TaskHandle_t systemIDTaskHandle;
 TaskHandle_t periodicModelUpdateTaskHandle;
 TaskHandle_t PIDTaskHandle;
+TaskHandle_t OscilateMotorTaskHandle;
 
 // PID control parameters
 float kp = 450.0f;			// Proportional gain
@@ -49,6 +50,8 @@ void setup()
 	xTaskCreate(TaskPeriodicModelUpdates, "PeriodicModelUpdateTask", 512, NULL, 1, &periodicModelUpdateTaskHandle);
 	vTaskSuspend(periodicModelUpdateTaskHandle); // Suspend until calibration is done
 
+	xTaskCreate(TaskOscilateMotor, "OscilateMotorTask", 128, NULL, 1, &OscilateMotorTaskHandle);
+	vTaskSuspend(OscilateMotorTaskHandle); // Suspend until system identification is done
 
 
 	// xTaskCreate(TaskSensorPrints, "SensorPrintsTask", 512, NULL, 1, NULL);
@@ -147,7 +150,6 @@ void TaskSystemIdentification(void *pvParameters)
 	const int taskFrequencyHz = 50;
 	TickType_t delay = pdMS_TO_TICKS(1000 / taskFrequencyHz);
 	Serial.println("System Identification task started!");
-	int count = 0;
 
 	using namespace SystemIdentification;
 	initialize();
@@ -201,7 +203,8 @@ void TaskSystemIdentification(void *pvParameters)
 			Motor::motorSpeed = 0;
 			model.printMatrices();
 			vTaskResume(PIDTaskHandle);
-			learningRate = 0.01f;
+			vTaskResume(OscilateMotorTaskHandle);
+			learningRate = 0.05f;
 			vTaskSuspend(NULL);
 		}
 
@@ -252,5 +255,20 @@ void TaskPeriodicModelUpdates(void *pvParameters)
 		}
 
 		vTaskDelayUntil(&xLastWakeTime, delay);
+	}
+}
+
+
+void TaskOscilateMotor(void *pvParameters)
+{
+	(void)pvParameters;
+	Serial.println("Motor oscillation task started!");
+
+	for (;;)
+	{
+		MotorState::motorSetpoint = 3.14f;
+		vTaskDelay(pdMS_TO_TICKS(2000));
+		MotorState::motorSetpoint = -3.14f;
+		vTaskDelay(pdMS_TO_TICKS(2000));
 	}
 }
