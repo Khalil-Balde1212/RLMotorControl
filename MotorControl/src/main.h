@@ -3,6 +3,7 @@
 
 
 #include "motorControl.h"
+#include <mbed.h>
 
 void setup();
 void loop();
@@ -18,4 +19,8 @@ void TaskSystemIdentification();
 
 void TaskPeriodicModelUpdates();
 extern bool useRLNN;
+void TaskRLControl();
+void TaskRLApply();
+extern bool RLLearning; // Toggle for policy weight updates
+extern rtos::Mutex rlMutex;
 #endif

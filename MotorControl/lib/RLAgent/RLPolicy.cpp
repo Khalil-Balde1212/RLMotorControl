@@ -5,7 +5,7 @@
 using namespace Eigen;
 namespace RLPolicy
 {
-	const int HORIZON_SIZE = 5;
+	const int HORIZON_SIZE = 20;
 	const int STATE_SIZE = 4;
 	const int HIDDEN_SIZE = 16;
 
@@ -32,6 +32,7 @@ namespace RLPolicy
 	static std::vector<float> cachedActions;
 	static float cachedSetpoint = 0.0f;
 	static std::vector<float> cachedPos;
+	static std::vector<int> cachedCmds;
 
 	static inline float ReLU(float x) { return x > 0.0f ? x : 0.0f; }
 
@@ -75,6 +76,7 @@ namespace RLPolicy
 		cachedHiddenLayer.clear();
 		cachedActions.clear();
 		cachedPos.clear();
+		cachedCmds.clear(); // Clear cachedCmds
 		cachedSetpoint = setpoint_normalized;
 		// simulate future states using LTI A,B and the chosen controls
 		Eigen::Matrix<float, STATE_SIZE, 1> stateF;
@@ -98,6 +100,7 @@ namespace RLPolicy
 			cachedStates.push_back(x);
 			cachedHiddenLayer.push_back(y);
 			cachedActions.push_back(u_out_norm);
+			cachedCmds.push_back(motorCmd); // Push motorCmd into cachedCmds
 			// compute next normalized state using model / LTI approximation
 			Matrix<float, STATE_SIZE, 1> xf;
 			for (int s = 0; s < STATE_SIZE; ++s)
@@ -128,15 +131,29 @@ namespace RLPolicy
 		float prevU = cachedActions.front();
 		for (size_t i = 0; i < cachedPos.size(); ++i)
 		{
+			// Position error reward (penalize deviation from setpoint)
 			float pos = cachedPos[i];
-			// use cached setpoint (normalized)
 			float setpoint = cachedSetpoint;
 			float err = setpoint - pos;
 			reward += -w_pos * err * err;
+
+			// Control effort penalty (discourage large actions)
 			float u = cachedActions[i];
 			reward += -w_u * u * u;
+
+			// Control change penalty (discourage rapid changes in action)
 			float du = u - prevU;
 			reward += -w_du * du * du;
+
+			// Jerk penalty (discourage rapid changes in acceleration)
+			if (i >= 2)
+			{
+				float jerk = (cachedActions[i] - cachedActions[i - 1]) - (cachedActions[i - 1] - cachedActions[i - 2]);
+				float w_jerk = 0.02f; // weight for jerk penalty
+				reward += -w_jerk * jerk * jerk;
+			}
+
+			// Update previous action for next step
 			prevU = u;
 		}
 		return reward;
@@ -203,5 +220,17 @@ namespace RLPolicy
 		b2 -= policyLR * (db2 + l2Reg * b2);
 		W1 -= policyLR * (dW1 + l2Reg * W1);
 		b1 -= policyLR * (db1 + l2Reg * b1);
+	}
+
+	// Return cached predicted positions (normalized) for telemetry
+	std::vector<float> getCachedPos()
+	{
+		return cachedPos;
+	}
+
+	// Return cached motor commands (int -255..255) for telemetry / apply
+	std::vector<int> getCachedCmds()
+	{
+		return cachedCmds;
 	}
 }

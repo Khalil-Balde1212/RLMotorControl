@@ -40,14 +40,14 @@ namespace SystemIdentification {
 }
 
 namespace RLPolicy {
-    extern const int HIDDEN_SIZE;
-    extern const int HORIZON_SIZE;
 
     void initializePolicy();
     // Compute a sequence of motor commands (int in [-255,255]) for HORIZON_SIZE future steps
     std::vector<int> computeMotorSequence(const MatrixXd &currentStateNormalized, float u_prev_normalized, float setpoint_normalized);
     float calculateReward();
     void updatePolicyWeights();
+    std::vector<float> getCachedPos();
+    std::vector<int> getCachedCmds();
 }
 
 

@@ -66,7 +66,8 @@ def main():
 
     # initialize plot
     plt.ion()
-    max_history = 100
+    # amount of history stored for the plots. Increase SD plots to 200 entries
+    max_history = 200
     si_update = 1 if args.si_live else max(1, args.si_update_every)
     # Combine SI and SD plots into one figure by enabling include_si
     sd_plot = SDPlot(sd_decimate=args.sd_decimate, max_history=max_history, display_interval=args.sd_interval, scroll_size=args.sd_scroll, include_si=True, si_update_every=si_update, si_display_interval=args.si_interval)

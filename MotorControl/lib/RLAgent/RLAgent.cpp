@@ -7,7 +7,7 @@
 using namespace Eigen;
 void SystemModel::initializeModel()
 {
-    stateTransition = MatrixXd::Ones(NUMBER_OF_STATES, NUMBER_OF_STATES);
+    stateTransition = MatrixXd::Identity(NUMBER_OF_STATES, NUMBER_OF_STATES);
     responseVector = MatrixXd::Ones(NUMBER_OF_STATES, NUMBER_OF_CONTROL);
 }
 
@@ -96,7 +96,12 @@ namespace SystemIdentification
         // Check for convergence
         static int accuracyCounter = 0;
         static bool accuracyConverged = false;
-        float accuracyThreshold = 5e-2; // Adjust as needed
+        float accuracyThreshold = 5e-1; // Adjust as needed
+
+        // Apply EMA filter to currentErrorNorm
+        static float emaErrorNorm = 0.0f;
+        float emaAlpha = 0.1f; // Smoothing factor, adjust as needed
+        emaErrorNorm = emaAlpha * currentErrorNorm + (1.0f - emaAlpha) * emaErrorNorm;
         if (fabs(currentErrorNorm) < accuracyThreshold)
         {
             if (++accuracyCounter >= 10) // Require 10 consecutive accurate iterations
@@ -111,14 +116,20 @@ namespace SystemIdentification
 
         static int stagnationCounter = 0;
         static bool stagnationConverged = false;
-        float stagnationThreshold = 7e-2; // Adjust as needed
+        float stagnationThreshold = 5e-1; // Adjust as needed
         static float prevErrorNorm = 0.0f;
-        if (fabs(prevErrorNorm - currentErrorNorm) < stagnationThreshold)
+        // Apply EMA filter to error norm difference for stagnation detection
+        static float emaErrorDiff = 0.0f;
+        float emaDiffAlpha = 0.1f; // Smoothing factor, adjust as needed
+        float errorDiff = fabs(prevErrorNorm - currentErrorNorm);
+        emaErrorDiff = emaDiffAlpha * errorDiff + (1.0f - emaDiffAlpha) * emaErrorDiff;
+
+        if (emaErrorDiff < stagnationThreshold)
         {
             stagnationCounter++;
             if (stagnationCounter > 25)
             {
-                stagnationConverged = true;
+            stagnationConverged = true;
             }
         }
         else

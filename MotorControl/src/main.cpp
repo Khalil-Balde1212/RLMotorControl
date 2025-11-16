@@ -20,6 +20,13 @@ rtos::Thread oscilateMotorThread;
 rtos::Thread sensorThread;
 rtos::Thread motorThread;
 rtos::Thread sensorDataThread;
+rtos::Thread rlControlThread;
+rtos::Thread rlApplyThread;
+// toggles
+bool useRLNN = true;
+bool RLLearning = true;
+// Mutex to protect RLPolicy cached data
+rtos::Mutex rlMutex;
 
 // Semaphores to control start/resume of threads (0 initial count -> block)
 rtos::Semaphore systemIDStart(0);
@@ -147,6 +154,7 @@ void TaskSystemIdentification()
 	using namespace SystemIdentification;
 	initialize();
 	MatrixXd input(model.NUMBER_OF_CONTROL, 1);
+	float learningRate = 0.5f;
 	for (;;)
 	{
 	// Tick-type timing not needed. We'll step with sleep
@@ -199,7 +207,10 @@ void TaskSystemIdentification()
 			oscStart.release();
 			// Initialize neural RL policy weights for later use
 			RLPolicy::initializePolicy();
-			learningRate = 0.05f;
+			learningRate = 0.0001f;
+			// Start RL threads now that ID is converged and RLPolicy initialized
+			rlControlThread.start(TaskRLControl);
+			rlApplyThread.start(TaskRLApply);
 			return; // end system identification thread
 		}
 
@@ -238,9 +249,9 @@ void TaskPeriodicModelUpdates()
 		// Update system model
 		update(currentState, input);
 
-		count++;
-		if (count >= 10)
-		{
+		// count++;
+		// if (count >= 10)
+		// {
 			String csv = "SI,"; 
 			csv += model.getMatricesCSV();
 			csv += String(currentUpdateNorm, 6) + ",";
@@ -248,7 +259,7 @@ void TaskPeriodicModelUpdates()
 			csv += String(converged ? 1 : 0);
 			Serial.println(csv);
 			count = 0;
-		}
+		// }
 
 	rtos::ThisThread::sleep_for(std::chrono::milliseconds(1000 / taskFrequencyHz));
 	}
@@ -267,5 +278,72 @@ void TaskOscilateMotor()
 	rtos::ThisThread::sleep_for(std::chrono::milliseconds(2000));
 		MotorState::motorSetpoint = -3.14f;
 	rtos::ThisThread::sleep_for(std::chrono::milliseconds(2000));
+	}
+}
+
+void TaskRLControl()
+{
+	const int taskFreqHz = 500;
+	const int delayMs = 1000 / taskFreqHz;
+	using namespace RLPolicy;
+
+	while (true)
+	{
+		if (!useRLNN)
+		{
+			rtos::ThisThread::sleep_for(std::chrono::milliseconds(delayMs));
+			continue;
+		}
+
+		// Build normalized state
+		MatrixXd state(4, 1);
+		state(0, 0) = MotorState::motorPos / MAX_POSITION;
+		state(1, 0) = MotorState::motorVel / MAX_VELOCITY;
+		state(2, 0) = MotorState::motorAcc / MAX_ACCELERATION;
+		state(3, 0) = MotorState::motorJrk / MAX_JERK;
+
+		float prevU = Motor::motorSpeed / 255.0f;
+		float setpointNorm = MotorState::motorSetpoint / MAX_POSITION;
+
+		// Compute motor sequence and cache predictions
+		rlMutex.lock();
+		std::vector<int> seq = RLPolicy::computeMotorSequence(state, prevU, setpointNorm);
+		// Optionally perform policy update
+		if (RLLearning)
+		{
+			RLPolicy::updatePolicyWeights();
+		}
+		rlMutex.unlock();
+
+		rtos::ThisThread::sleep_for(std::chrono::milliseconds(delayMs));
+	}
+}
+
+void TaskRLApply()
+{
+	// Apply the first cached predicted position to MotorState::motorSetpoint
+	// at the PID frequency (100 Hz) so PID can track the planned trajectory
+	const int taskFreqHz = 1000;
+	const int delayMs = 1000 / taskFreqHz;
+	using namespace RLPolicy;
+
+	while (true)
+	{
+		if (!useRLNN)
+		{
+			rtos::ThisThread::sleep_for(std::chrono::milliseconds(delayMs));
+			continue;
+		}
+
+		rlMutex.lock();
+		std::vector<int> cmds = RLPolicy::getCachedCmds();
+		if (!cmds.empty())
+		{
+			int motorCmd = cmds.front();
+			Motor::motorSpeed = constrain(motorCmd, -255, 255);
+		}
+		rlMutex.unlock();
+
+		rtos::ThisThread::sleep_for(std::chrono::milliseconds(delayMs));
 	}
 }
