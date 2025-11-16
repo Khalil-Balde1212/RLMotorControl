@@ -95,7 +95,7 @@ namespace SystemIdentification
         // Check for convergence
         static int accuracyCounter = 0;
         static bool accuracyConverged = false;
-        float accuracyThreshold = 3e-2; // Adjust as needed
+        float accuracyThreshold = 5e-2; // Adjust as needed
         if (fabs(currentErrorNorm) < accuracyThreshold)
         {
             if (++accuracyCounter >= 10)  // Require 10 consecutive accurate iterations
@@ -115,7 +115,7 @@ namespace SystemIdentification
         if (fabs(prevErrorNorm - currentErrorNorm) < stagnationThreshold)
         {
             stagnationCounter++;
-            if (stagnationCounter > 50)
+            if (stagnationCounter > 25)
             {
                 stagnationConverged = true;
             }
