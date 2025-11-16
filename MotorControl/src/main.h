@@ -17,4 +17,5 @@ void TaskCalibration();
 void TaskSystemIdentification();
 
 void TaskPeriodicModelUpdates();
+extern bool useRLNN;
 #endif

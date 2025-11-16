@@ -197,6 +197,8 @@ void TaskSystemIdentification()
 			model.printMatrices();
 			pidStart.release();
 			oscStart.release();
+			// Initialize neural RL policy weights for later use
+			RLPolicy::initializePolicy();
 			learningRate = 0.05f;
 			return; // end system identification thread
 		}
