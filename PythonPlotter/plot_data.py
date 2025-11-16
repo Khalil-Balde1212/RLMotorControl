@@ -1,207 +1,239 @@
+import argparse
+from dataclasses import dataclass
 import numpy as np
 import matplotlib.pyplot as plt
 import serial
+import threading
+from queue import Queue, Empty
 import time
 import serial.tools.list_ports
 
 # Serial port configuration
 BAUD_RATE = 115200  # Match the Arduino's Serial.begin(115200)
 
-def parse_data(line):
-    try:
-        values = line.strip().split(',')
-        if len(values) != 23:
-            return None, None, None, None, None
-        
-        # 16 values for 4x4 matrix
-        matrix_flat = [float(v) for v in values[:16]]
-        matrix = np.array(matrix_flat).reshape(4, 4)
-        
-        # 4 values for vector
-        vector_flat = [float(v) for v in values[16:20]]
-        vector = np.array(vector_flat)
-        
-        conv_rate = float(values[20])
-        curr_error = float(values[21])
-        converged = bool(int(values[22]))
-        
-        return matrix, vector, conv_rate, curr_error, converged
-    except Exception as e:
-        print(f"Parsing error: {e}, skipping line")
-        return None, None, None, None, None
+from serial_parser import parse_message, SIData, SDData, parse_data, parse_all_messages
+# SIPlot is no longer used directly; SI plots are embedded inside SDPlot now when include_si=True
+from sd_plot import SDPlot
 
-# Find available ports
-ports = [p.device for p in serial.tools.list_ports.comports() if 'ACM' in p.device or 'COM' in p.device]
-if not ports:
-    print("No ACM or COM ports found. Please check your Arduino connection.")
-    exit(1)
 
-# Try to open each port
-ser = None
-for port in ports:
-    try:
-        ser = serial.Serial(port, BAUD_RATE, timeout=1)
-        time.sleep(2)  # Wait for serial to initialize
-        print(f"Successfully opened port {port}")
-        break
-    except serial.SerialException as e:
-        print(f"Failed to open {port}: {e}")
-        continue
+# SDData dataclass has been moved into serial_parser
 
-if ser is None:
-    print("Could not open any serial port.")
-    exit(1)
 
-# Initialize plot
-plt.ion()
-fig, axes = plt.subplots(3, 2, figsize=(12, 12))
+# parse_message & parse_data have moved into serial_parser
 
-# Initial data (dummy)
-state_transition_matrix = np.eye(4)
-prev_state_transition_matrix = np.eye(4)
-response_vector = np.zeros(4)
-prev_response_vector = np.zeros(4)
-convergence_rate = 0.0
-current_error = 0.0
-converged = False
 
-# Histories for live plotting
-conv_history = []
-error_history = []
-max_history = 100  # Keep last 100 points
+def find_ports():
+    return [p.device for p in serial.tools.list_ports.comports() if any(tok in p.device for tok in ('ACM', 'COM', 'ttyUSB', 'ttyACM', 'USB'))]
 
-# Initial plots
-im = axes[0,0].imshow(state_transition_matrix, cmap='viridis', aspect='auto', vmin=-1, vmax=1)
-axes[0,0].set_title('Current State Transition Matrix')
-axes[0,0].set_xlabel('Columns')
-axes[0,0].set_ylabel('Rows')
-cbar = plt.colorbar(im, ax=axes[0,0])
 
-im_change = axes[0,1].imshow(np.zeros((4,4)), cmap='RdYlBu', aspect='auto', vmin=-0.01, vmax=0.01)
-axes[0,1].set_title('State Transition Matrix Change')
-axes[0,1].set_xlabel('Columns')
-axes[0,1].set_ylabel('Rows')
-cbar_change = plt.colorbar(im_change, ax=axes[0,1])
+def main():
+    parser = argparse.ArgumentParser(description='Plot data from Arduino serial output')
+    parser.add_argument('--port', '-p', help='Serial port to use (overrides auto-detection)')
+    parser.add_argument('--baud', '-b', type=int, default=BAUD_RATE, help='Baud rate')
+    parser.add_argument('--debug', action='store_true', help='Print raw unparsed serial lines')
+    parser.add_argument('--sd-decimate', type=int, default=10, help='Decimation factor for SD sensor plotting')
+    parser.add_argument('--sd-live', action='store_true', help='Update SD plots live for every SD sample (overrides --sd-decimate)')
+    parser.add_argument('--si-live', action='store_true', help='Update SI plots live (no decimation / update every sample)')
+    parser.add_argument('--si-update-every', type=int, default=10, help='Update SI plot every N messages (default 10)')
+    parser.add_argument('--si-interval', type=float, default=None, help='Time in seconds between SI plot updates (overrides --si-update-every if set)')
+    parser.add_argument('--sd-interval', type=float, default=None, help='Time in seconds between SD plot updates (overrides sd-decimate if set)')
+    parser.add_argument('--sd-scroll', type=int, default=20, help='Autoscroll to show the last N samples for SD (0 to disable)')
+    parser.add_argument('--no-thread', action='store_true', help='Disable background serial reader thread (default: enabled)')
+    args = parser.parse_args()
 
-bars = axes[1,0].bar(range(len(response_vector)), response_vector, color='skyblue')
-axes[1,0].set_title('Current Response Vector')
-axes[1,0].set_xlabel('Index')
-axes[1,0].set_ylabel('Value')
+    # Find available ports
+    if args.port:
+        ports = [args.port]
+    else:
+        ports = find_ports()
+        if not ports:
+            print('No serial ports found; check your connection.')
+            return
 
-im_vector = axes[1,1].imshow(np.zeros((1,4)), cmap='RdYlBu', aspect='auto', vmin=-0.001, vmax=0.001)
-axes[1,1].set_title('Response Vector Change')
-axes[1,1].set_xlabel('Index')
-axes[1,1].set_ylabel('')
-
-# Initial error plot
-axes[2,0].plot([], [], 'r-')
-axes[2,0].set_title('Current Error')
-axes[2,0].set_xlabel('Steps')
-axes[2,0].set_ylabel('Error')
-
-# Initial convergence plot
-axes[2,1].plot([], [], 'b-')
-axes[2,1].set_title('Error Rate (Convergence)')
-axes[2,1].set_xlabel('Steps')
-axes[2,1].set_ylabel('Rate')
-
-plt.tight_layout()
-
-try:
-    update_counter = 0
-    while True:
+    ser = None
+    for port in ports:
         try:
-            line = ser.readline().decode('utf-8', errors='ignore').strip()
-            if line:
-                matrix, vector, conv_rate, curr_error, conv = parse_data(line)
-                if matrix is not None and vector is not None and conv_rate is not None and curr_error is not None and conv is not None:
-                    state_transition_matrix = matrix
-                    response_vector = vector
-                    convergence_rate = conv_rate
-                    current_error = curr_error
-                    converged = conv
-                    
-                    # Compute changes
-                    change_matrix = state_transition_matrix - prev_state_transition_matrix
-                    prev_state_transition_matrix = state_transition_matrix.copy()
-                    change = response_vector - prev_response_vector
-                    prev_response_vector = response_vector.copy()
-                    
-                    # Update histories
-                    conv_history.append(convergence_rate)
-                    error_history.append(current_error)
-                    
-                    # Keep only last max_history points
-                    if len(conv_history) > max_history:
-                        conv_history.pop(0)
-                        error_history.pop(0)
-                    
-                    update_counter += 1
-                    if update_counter % 10 == 0:  # Update plots every 10 blocks to reduce load
-                        try:
-                            print("Updating plots...")
-                            # Update current STM
-                            im.set_data(state_transition_matrix)
-                            
-                            # Update STM change
-                            im_change.set_data(change_matrix)
-                            
-                            # Update current RV
-                            for bar, val in zip(bars, response_vector):
-                                bar.set_height(val)
-                            min_val = min(response_vector) - 0.0001
-                            max_val = max(response_vector) + 0.0001
-                            if max_val - min_val < 1e-3:
-                                max_val = min_val + 1e-3
-                            axes[1,0].set_ylim(min_val, max_val)
-                            
-                            # Update RV change
-                            im_vector.set_data(change.reshape(1,4))
-                            
-                            # Update error plot
-                            axes[2,0].clear()
-                            axes[2,0].plot(range(len(error_history)), error_history, 'r-')
-                            axes[2,0].set_title('Current Error')
-                            axes[2,0].set_xlabel('Steps')
-                            axes[2,0].set_ylabel('Error')
-                            if error_history:
-                                min_y = 0
-                                max_y = max(error_history) * 1.1
-                                if max_y < 1e-3:
-                                    max_y = 1e-3
-                                axes[2,0].set_ylim(min_y, max_y)
-                            
-                            # Update convergence plot
-                            axes[2,1].clear()
-                            axes[2,1].plot(range(len(conv_history)), conv_history, 'b-')
-                            axes[2,1].set_title('Error Rate (Convergence)')
-                            axes[2,1].set_xlabel('Steps')
-                            axes[2,1].set_ylabel('Rate')
-                            if conv_history:
-                                min_y = 0
-                                max_y = max(conv_history) * 1.1
-                                if max_y < 1e-5:
-                                    max_y = 1e-5
-                                axes[2,1].set_ylim(min_y, max_y)
-                            
-                            plt.draw()
-                            plt.pause(0.01)
-                        except Exception as e:
-                            print(f"Plot update error: {e}")
-                            continue
-                    
-                    # Print scalars
-                    print(f"Convergence Rate: {convergence_rate}")
-                    print(f"Current Error: {current_error}")
-                    print(f"Converged: {converged}")
-        except OSError as e:
-            print(f"Serial read error: {e}, retrying...")
-            time.sleep(1)
+            ser = serial.Serial(port, args.baud, timeout=1)
+            time.sleep(2)
+            print(f"Opened serial {port} @ {args.baud}")
+            break
+        except serial.SerialException:
             continue
-        
-        time.sleep(0.01)  # Small delay
 
-except Exception as e:
-    print(f"Unexpected error: {e}")
-    ser.close()
-    plt.close()
+    if ser is None:
+        print('Failed to open any serial port')
+        return
+
+    # initialize plot
+    plt.ion()
+    max_history = 100
+    si_update = 1 if args.si_live else max(1, args.si_update_every)
+    # Combine SI and SD plots into one figure by enabling include_si
+    sd_plot = SDPlot(sd_decimate=args.sd_decimate, max_history=max_history, display_interval=args.sd_interval, scroll_size=args.sd_scroll, include_si=True, si_update_every=si_update, si_display_interval=args.si_interval)
+
+    print('Listening to serial...')
+    # use new SDPlot and SIPlot helper modules to isolate concerns
+    # sd_plot already initialized above with include_si=True
+    # If live SD updates requested, configure SDPlot for smooth blit updates
+    if args.sd_live:
+        try:
+            sd_plot.enable_live()
+        except Exception:
+            # if enable_live fails just fall back to normal updates
+            if args.debug:
+                print('sd_plot.enable_live() failed; falling back to non-blit mode')
+    update_counter = 0
+    sd_count = 0
+
+    # Optionally run a background reader thread so GUI redraws don't block
+    # serial reads. The reader pushes parsed (id, data) tuples into a queue
+    # which the main thread drains and uses to update Matplotlib safely.
+    q: Queue | None = None
+    stop_event = threading.Event()
+
+    def reader_loop(ser, q, stop_event, debug):
+        """Background loop which reads serial lines, parses them and
+        puts (msg_id, data) tuples in the queue. Runs until stop_event is set.
+        """
+        while not stop_event.is_set():
+            try:
+                line = ser.readline().decode('utf-8', errors='ignore').strip()
+            except OSError as e:
+                if debug:
+                    print(f"Serial read error: {e}, retrying...")
+                time.sleep(1)
+                continue
+
+            if not line:
+                # small sleep to avoid busy loop
+                time.sleep(0.001)
+                continue
+
+            if debug:
+                print('RAW:', line)
+
+            msgs = parse_all_messages(line)
+            # normalize to array
+            parsed_msgs = msgs if isinstance(msgs, list) else [msgs]
+            ids = [m for m, _ in parsed_msgs if m is not None]
+            if debug and ids:
+                print('PARSED:', ids)
+
+            if not parsed_msgs or all(m is None for m, _ in parsed_msgs):
+                if debug:
+                    print('UNPARSED:', line)
+                continue
+
+            for msg in parsed_msgs:
+                try:
+                    q.put(msg, timeout=0.02)
+                except Exception:
+                    # drop when queue is full
+                    if debug:
+                        print('reader_loop: queue full, dropping message')
+
+    if not args.no_thread:
+        q = Queue(maxsize=2000)
+        reader = threading.Thread(target=reader_loop, args=(ser, q, stop_event, args.debug), daemon=True)
+        reader.start()
+
+    # Main loop: if threaded reader is enabled, drain the queue; otherwise
+    # do serial reads inline (backwards compatible and handy for debugging).
+    try:
+        if args.no_thread:
+            # Inline (non-threaded) read loop
+            while True:
+                try:
+                    line = ser.readline().decode('utf-8', errors='ignore').strip()
+                except OSError as e:
+                    print(f"Serial read error: {e}, retrying...")
+                    time.sleep(1)
+                    continue
+
+                if not line:
+                    time.sleep(0.01)
+                    continue
+
+                if args.debug:
+                    print('RAW:', line)
+
+                msgs = parse_all_messages(line)
+                parsed_msgs = msgs if isinstance(msgs, list) else [msgs]
+                if args.debug:
+                    ids = [m for m, _ in parsed_msgs]
+                    print('PARSED:', ids)
+
+                if not parsed_msgs or all(m is None for m, _ in parsed_msgs):
+                    if args.debug:
+                        print('UNPARSED:', line)
+                    continue
+
+                for msg_id, data in parsed_msgs:
+                    if msg_id == 'SD':
+                        if data is not None:
+                            sd_plot.update(data, live=args.sd_live)
+                            if args.debug:
+                                print('SD parsed and passed to SDPlot')
+                    if msg_id == 'SI' or msg_id == 'RAW_CSV':
+                        if data is None:
+                            if args.debug:
+                                print('SI token seen but data parse failed')
+                            continue
+                        sd_plot.update_si(data)
+                        if args.debug:
+                            print('SI parsed and included in SD window')
+                continue
+        else:
+            # Threaded read: drain a queue of parsed messages and update plots
+            msg_counter = 0
+            last_report = time.time()
+            while True:
+                try:
+                    msg_id, data = q.get(timeout=0.05)
+                except Empty:
+                    # keep GUI alive and responsive
+                    plt.pause(0.01)
+                    continue
+
+                msg_counter += 1
+                if msg_id == 'SD':
+                    if data is not None:
+                        sd_plot.update(data, live=args.sd_live)
+                        if args.debug:
+                            print('SD parsed and passed to SDPlot')
+                if msg_id == 'SI' or msg_id == 'RAW_CSV':
+                    if data is None:
+                        if args.debug:
+                            print('SI token seen but data parse failed')
+                        continue
+                    sd_plot.update_si(data)
+                    if args.debug:
+                        print('SI parsed and included in SD window')
+
+                # periodic throughput print
+                now = time.time()
+                if now - last_report >= 1.0:
+                    if args.debug:
+                        print(f"Throughput: {msg_counter} messages/sec, queue_size={q.qsize()}")
+                    msg_counter = 0
+                    last_report = now
+
+    except KeyboardInterrupt:
+        print('Stopping')
+    finally:
+        # signal background reader to stop and join thread if used
+        try:
+            stop_event.set()
+        except Exception:
+            pass
+        try:
+            if not args.no_thread:
+                reader.join(timeout=1)
+        except Exception:
+            pass
+        ser.close()
+        plt.close()
+
+
+if __name__ == '__main__':
+    main()

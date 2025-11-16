@@ -5,11 +5,12 @@ void TaskSensorPrints()
 {
     // No parameters for Mbed threads
     Serial.println("Sensor prints task started!");
-    int taskFrequencyHz = 2; // Increased to 2Hz for debugging
+    int taskFrequencyHz = 100;
     int delayMs = 1000 / taskFrequencyHz;
 
     for (;;)
     {
+        Serial.print("SD,");
         Serial.print(MotorState::motorPos);
         Serial.print(",");
         Serial.print(MotorState::motorSetpoint);
@@ -23,14 +24,9 @@ void TaskSensorPrints()
         Serial.print(MotorState::motorCurrent);
         Serial.print(",");
         Serial.print(Motor::motorSpeed / 255.0f); // Print motor speed as percentage
-        Serial.print(",");
-        Serial.print(MotorState::propError); // P error
-        Serial.print(",");
-        Serial.print(MotorState::intError); // I error
-        Serial.print(",");
-        Serial.print(MotorState::derivError); // D error
 
-        Serial.println();
+
+        Serial.println();   
         delay(delayMs);
     }
 }

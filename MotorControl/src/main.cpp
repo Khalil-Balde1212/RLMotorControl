@@ -19,6 +19,7 @@ rtos::Thread periodicModelUpdateThread;
 rtos::Thread oscilateMotorThread;
 rtos::Thread sensorThread;
 rtos::Thread motorThread;
+rtos::Thread sensorDataThread;
 
 // Semaphores to control start/resume of threads (0 initial count -> block)
 rtos::Semaphore systemIDStart(0);
@@ -63,6 +64,8 @@ void setup()
 	pidThread.start(TaskPIDControl);
 	sensorThread.start(Motor::TaskSensorReads);
 	motorThread.start(Motor::TaskMotorControl);
+	sensorDataThread.start(TaskSensorPrints);
+
 
 	Serial.println("Tasks created");
 }
@@ -236,7 +239,8 @@ void TaskPeriodicModelUpdates()
 		count++;
 		if (count >= 10)
 		{
-			String csv = model.getMatricesCSV();
+			String csv = "SI,"; 
+			csv += model.getMatricesCSV();
 			csv += String(currentUpdateNorm, 6) + ",";
 			csv += String(currentErrorNorm, 6) + ",";
 			csv += String(converged ? 1 : 0);
