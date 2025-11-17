@@ -13,8 +13,8 @@ Kt = 0.0073  # Torque constant of base motor (Nm/A)
 J = 0.000001  # Base motor rotor inertia (kg.m^2)
 B = 0.00001  # Base motor friction (minimal)
 
-J += 0.002  # Add gearbox inertia
-B += 0.001   # Add gearbox friction
+J += 0.0002  # Add gearbox inertia
+B += 0.0001   # Add gearbox friction
 
 J += 0.0005  # Add load inertia
 B += 0.0005  # Add load friction
