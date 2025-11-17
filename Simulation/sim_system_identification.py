@@ -165,6 +165,11 @@ if __name__ == '__main__':
     lr = 0.02
     times, error_norms, update_norms, A_final, B_final, A_hist, B_hist = run_sim(duration_sec=duration, learning_rate=lr, seed=42)
 
+    # Export LTI model as numpy arrays
+    np.save('A.npy', A_final)
+    np.save('B.npy', B_final)
+    print("LTI model exported as A.npy and B.npy")
+
     # Plot results
     fig, axes = plt.subplots(2, 2, figsize=(10, 6))
     ax0 = axes[0, 0]
