@@ -1,13 +1,11 @@
 #include <Arduino.h>
 
-
 #include "main.h"
 #include "motorControl.h"
 #include "PID.h"
 #include <ArduinoEigenDense.h>
 
 #include "RLAgent.h"
-
 
 // Mbed OS thread objects
 #include <mbed.h>
@@ -73,7 +71,6 @@ void setup()
 	motorThread.start(Motor::TaskMotorControl);
 	sensorDataThread.start(TaskSensorPrints);
 
-
 	Serial.println("Tasks created");
 }
 
@@ -130,7 +127,8 @@ void TaskPIDControl()
 	Serial.println("PID Control task started!");
 	const int taskFrequencyHz = 100;
 	float dt = 1.0f / taskFrequencyHz; // Time step in seconds
-	while (true) {
+	while (true)
+	{
 		// Get current position
 		float currentPosition = MotorState::motorPos;
 		// Compute PID control action
@@ -157,7 +155,7 @@ void TaskSystemIdentification()
 	float learningRate = 0.5f;
 	for (;;)
 	{
-	// Tick-type timing not needed. We'll step with sleep
+		// Tick-type timing not needed. We'll step with sleep
 
 		// Calculate time based on task iterations
 		static float timeSec = 0.0f;
@@ -214,7 +212,7 @@ void TaskSystemIdentification()
 			return; // end system identification thread
 		}
 
-	rtos::ThisThread::sleep_for(std::chrono::milliseconds(1000 / taskFrequencyHz));
+		rtos::ThisThread::sleep_for(std::chrono::milliseconds(1000 / taskFrequencyHz));
 	}
 }
 
@@ -225,13 +223,11 @@ void TaskPeriodicModelUpdates()
 	Serial.println("Periodic update task started!");
 	const int taskFrequencyHz = 50; // 10 Hz
 
-	int count = 0;
-
 	using namespace SystemIdentification;
 	MatrixXd input(model.NUMBER_OF_CONTROL, 1);
 	for (;;)
 	{
-	// Maintain loop frequency by sleeping
+		// Maintain loop frequency by sleeping
 
 		MatrixXd currentState(model.NUMBER_OF_STATES, 1);
 		float pos = isnan(MotorState::motorPos) ? 0.0f : MotorState::motorPos;
@@ -249,22 +245,16 @@ void TaskPeriodicModelUpdates()
 		// Update system model
 		update(currentState, input);
 
-		// count++;
-		// if (count >= 10)
-		// {
-			String csv = "SI,"; 
-			csv += model.getMatricesCSV();
-			csv += String(currentUpdateNorm, 6) + ",";
-			csv += String(currentErrorNorm, 6) + ",";
-			csv += String(converged ? 1 : 0);
-			Serial.println(csv);
-			count = 0;
-		// }
+		String csv = "SI,";
+		csv += model.getMatricesCSV();
+		csv += String(currentUpdateNorm, 6) + ",";
+		csv += String(currentErrorNorm, 6) + ",";
+		csv += String(converged ? 1 : 0);
+		Serial.println(csv);
 
-	rtos::ThisThread::sleep_for(std::chrono::milliseconds(1000 / taskFrequencyHz));
+		rtos::ThisThread::sleep_for(std::chrono::milliseconds(1000 / taskFrequencyHz));
 	}
 }
-
 
 void TaskOscilateMotor()
 {
@@ -275,9 +265,9 @@ void TaskOscilateMotor()
 	for (;;)
 	{
 		MotorState::motorSetpoint = 3.14f;
-	rtos::ThisThread::sleep_for(std::chrono::milliseconds(2000));
+		rtos::ThisThread::sleep_for(std::chrono::milliseconds(2000));
 		MotorState::motorSetpoint = -3.14f;
-	rtos::ThisThread::sleep_for(std::chrono::milliseconds(2000));
+		rtos::ThisThread::sleep_for(std::chrono::milliseconds(2000));
 	}
 }
 
