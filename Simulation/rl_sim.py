@@ -25,7 +25,8 @@ def run_policy_gradient_simulation(setpoint, num_episodes=200, steps_per_episode
         for t in range(steps_per_episode):
             next_state = state  # For demo, use current state as next_state
             action, log_prob = agent.select_action(state, next_state, setpoint, prev_control)
-            next_state, reward, done, _ = env.step(action)
+            # Pass step and max_steps to env.step
+            next_state, reward, done, _ = env.step(action, t, steps_per_episode)
             log_probs.append(log_prob)
             rewards.append(reward)
             pos_list.append(next_state[0])
@@ -84,5 +85,5 @@ def plot_step_response(pos, vel, acc, jerk, setpoint):
 
 if __name__ == "__main__":
     setpoint = 2 * np.pi
-    pos, vel, acc, jerk = run_policy_gradient_simulation(setpoint, num_episodes=500, steps_per_episode=20)
+    pos, vel, acc, jerk = run_policy_gradient_simulation(setpoint, num_episodes=500, steps_per_episode=100)
     plot_step_response(pos, vel, acc, jerk, setpoint)

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class MotorEffortRLModel(nn.Module):
-    def __init__(self, state_dim, setpoint_dim=1, control_dim=1, hidden_dim=128, output_steps=20):
+    def __init__(self, state_dim, setpoint_dim=1, control_dim=1, hidden_dim=128, output_steps=5):
         super(MotorEffortRLModel, self).__init__()
         input_dim = state_dim * 2 + setpoint_dim + control_dim
         self.net = nn.Sequential(
@@ -10,7 +10,7 @@ class MotorEffortRLModel(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, output_steps)
+            nn.Linear(hidden_dim, output_steps)  # output_steps=5 for 5 future speeds
         )
 
     def forward(self, state, next_state, setpoint, prev_control):
@@ -23,7 +23,7 @@ class MotorEffortRLModel(nn.Module):
 if __name__ == "__main__":
 
     # Model and training setup
-    model = MotorEffortRLModel(state_dim=5)
+    model = MotorEffortRLModel(state_dim=5, output_steps=5)
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
@@ -36,15 +36,15 @@ if __name__ == "__main__":
         next_state = torch.randn(batch_size, 5)
         setpoint = torch.randn(batch_size, 1)
         prev_control = torch.randn(batch_size, 1)
-        target_efforts = torch.randn(batch_size, 20)  # Replace with true motor efforts
+    target_speeds = torch.randn(batch_size, 5)  # Replace with true future speeds
 
         # Forward pass
-        output = model(state, next_state, setpoint, prev_control)
-        loss = criterion(output, target_efforts)
+    output = model(state, next_state, setpoint, prev_control)
+    loss = criterion(output, target_speeds)
 
-        # Backward and optimize
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    # Backward and optimize
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
 
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}")
+    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}")
