@@ -49,6 +49,8 @@ namespace MotorState
     float motorSetpoint = 3.1415f; // Base target position (radians)
     float setpointAmplitude = 3.14f; // Amplitude for sinusoidal setpoint
     float setpointFrequency = 0.1f; // Frequency for sinusoidal setpoint
+    bool isLeftStopped = false;
+    bool isRightStopped = false;
 }
 
 // =============================================================================
@@ -81,6 +83,9 @@ void MotorState::initialize()
     motorSetpoint = 1.57f; // π/2 radians (90 degrees) - non-zero setpoint for testing
     setpointAmplitude = 3.14f;
     setpointFrequency = 0.1f;
+
+    isLeftStopped = false;
+    isRightStopped = false;
 }
 
 float MotorState::countsToRadians(long counts) {
@@ -194,4 +199,24 @@ void MotorState::encoderISR()
 
     // Store current state for next interrupt
     lastEncoded = encoded;
+}
+
+void MotorState::leftLimitSwitchISR()
+{
+    if(digitalRead(LEFT_LIMIT_SWITCH_PIN) == LOW) {
+        // Set left stop flag
+        isLeftStopped = true;
+    } else {
+        isLeftStopped = false;
+    }
+}
+
+void MotorState::rightLimitSwitchISR()
+{
+    if(digitalRead(RIGHT_LIMIT_SWITCH_PIN) == LOW) {
+        // Set right stop flag
+        isRightStopped = true;
+    } else {
+        isRightStopped = false;
+    }
 }

@@ -9,6 +9,8 @@
 #define ENCODER_B 3
 #define MOTOR_PIN_A 5
 #define MOTOR_PIN_B 6
+#define LEFT_LIMIT_SWITCH_PIN 12
+#define RIGHT_LIMIT_SWITCH_PIN 11
 #define CURRENT_SENSE_PIN A0
 
 

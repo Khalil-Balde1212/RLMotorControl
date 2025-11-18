@@ -6,12 +6,18 @@ from scipy import signal
 # Typical small DC motor with ~30:1 gearbox
 
 # Base motor (before gearbox) estimated parameters:
-R = 2.5       # Resistance (Ohms) - typical for small DC motors
-L = 0.005     # Inductance (H) - small motors have low inductance
+R = 0.5       # Resistance (Ohms) - typical for small DC motors
+L = 0.1     # Inductance (H) - small motors have low inductance
 Ke = 0.0073  # Back EMF constant of base motor (V/rad/s)
 Kt = 0.0073  # Torque constant of base motor (Nm/A)
-J = 0.00001  # Base motor rotor inertia (kg.m^2)
+J = 0.000001  # Base motor rotor inertia (kg.m^2)
 B = 0.00001  # Base motor friction (minimal)
+
+J += 0.0002  # Add gearbox inertia
+B += 0.0001   # Add gearbox friction
+
+J += 0.0005  # Add load inertia
+B += 0.0005  # Add load friction
 
 MAX_VOLTAGE = 12.0
 
@@ -47,17 +53,20 @@ DT = 1.0 / CONTROL_FREQUENCY # Discrete Timesteps
 # Where I_ss is the current needed to overcome friction: B * ω_max = Kt * I_ss
 # Solving: ω_max = V_max / (Ke + R * B / Kt)
 MaxVel = MAX_VOLTAGE / (Ke + R * B / Kt)
+MaxVel *= 1.2  # Safety margin
 
 # Maximum acceleration occurs at stall (ω = 0) with maximum current
 # I_max = V_max / R (at stall, no back-EMF)
 # Max torque: T_max = Kt * I_max - B * 0 = Kt * V_max / R
 # Max acceleration: α_max = T_max / J
 MaxAcc = (Kt * MAX_VOLTAGE / R) / J
+MaxAcc *= 1.2  # Safety margin
 
 # Maximum jerk is limited by electrical time constant L/R
 # di/dt_max = V_max / L (when current is zero)
 # dα/dt_max = (Kt / J) * di/dt_max
 MaxJrk = (Kt / J) * (MAX_VOLTAGE / L)
+MaxJrk *= 1.2  # Safety margin
 
 
 

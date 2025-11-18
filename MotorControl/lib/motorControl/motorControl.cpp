@@ -30,10 +30,13 @@ void Motor::setup()
     // Initialize encoder pins with pull-up resistors
     pinMode(ENCODER_A, INPUT_PULLUP);
     pinMode(ENCODER_B, INPUT_PULLUP);
-
+    pinMode(LEFT_LIMIT_SWITCH_PIN, INPUT_PULLUP);
+    pinMode(RIGHT_LIMIT_SWITCH_PIN, INPUT_PULLUP);
     // Attach interrupts for quadrature encoder decoding
     attachInterrupt(digitalPinToInterrupt(ENCODER_A), MotorState::encoderISR, CHANGE);
     attachInterrupt(digitalPinToInterrupt(ENCODER_B), MotorState::encoderISR, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(LEFT_LIMIT_SWITCH_PIN), MotorState::leftLimitSwitchISR, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_SWITCH_PIN), MotorState::rightLimitSwitchISR, CHANGE);
 
     // Initialize motor control pins
     pinMode(MOTOR_PIN_A, OUTPUT);
@@ -77,7 +80,7 @@ void Motor::TaskMotorControl()
             analogWrite(MOTOR_PIN_A, Motor::motorSpeed);
             analogWrite(MOTOR_PIN_B, 0);
         }
-        else if (Motor::motorSpeed < 0) {
+        else if ((Motor::motorSpeed < 0)) {
             // Reverse rotation
             analogWrite(MOTOR_PIN_A, 0);
             analogWrite(MOTOR_PIN_B, -Motor::motorSpeed);

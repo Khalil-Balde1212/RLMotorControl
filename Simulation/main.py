@@ -10,26 +10,19 @@ accData = []
 jrkData = []
 
 
-setpoint = 1.0
+setpoint = 3.14
 lastError = 0.0
 integralError = 0.0
 
-# PID gains using Ziegler-Nichols Ultimate Gain Method
-# Experimental measurements:
-# - Ultimate gain (Ku) = 0.9 (P gain where system oscillates continuously)
-# - Oscillation period (Tu) = 1.12 seconds
-#
-# Ziegler-Nichols PID tuning formulas:
-# Kp = 0.6 * Ku
-# Ki = 2 * Kp / Tu = 1.2 * Ku / Tu
-# Kd = Kp * Tu / 8 = 0.075 * Ku * Tu
+# Ku = 0.05
+# Pu = 35s
 
-kp = 0.6 * 0.9         # = 0.54
-ki = 1.2 * 0.9 / 1.12  # = 0.964
-kd = 0.075 * 0.9 * 1.12  # = 0.0756
+kp = 0.06
+ki = 0.000 
+kd = 0.1
 
 angularVel_values = []
-for i in range(2000):
+for i in range(10000):
     error = setpoint - motor_model.angularPos
     integralError += error * 0.01
     derivativeError = (error - lastError) / 0.01
@@ -51,17 +44,17 @@ for i in range(2000):
             crossings.append(i)
 
     # Calculate period from consecutive crossings (2 crossings = half period)
-    # if len(crossings) >= 2:
-    #     periods = []
-    #     for i in range(1, len(crossings)):
-    #         half_period = crossings[i] - crossings[i-1]
-    #         periods.append(2 * half_period)
+    if len(crossings) >= 2:
+        periods = []
+        for i in range(1, len(crossings)):
+            half_period = crossings[i] - crossings[i-1]
+            periods.append(2 * half_period)
         
-    #     ultimate_period_steps = np.mean(periods)
-    #     ultimate_period_seconds = ultimate_period_steps * 0.01  # Convert to seconds (100Hz sampling)
-    #     print(f"Ultimate Period: {ultimate_period_seconds:.4f} seconds ({ultimate_period_steps:.2f} steps)")
-    # else:
-    #     print("Not enough oscillations detected to calculate period")
+        ultimate_period_steps = np.mean(periods)
+        ultimate_period_seconds = ultimate_period_steps * 0.01  # Convert to seconds (100Hz sampling)
+        print(f"Ultimate Period: {ultimate_period_seconds:.4f} seconds ({ultimate_period_steps:.2f} steps)")
+    else:
+        print("Not enough oscillations detected to calculate period")
 # Create the plot with subplots
 
 

@@ -80,6 +80,10 @@ namespace MotorState
     extern float setpointAmplitude;
     extern float setpointFrequency;
 
+
+    extern bool isLeftStopped;
+    extern bool isRightStopped;
+
     // =============================================================================
     // State Management Functions
     // =============================================================================
@@ -133,6 +137,12 @@ namespace MotorState
      * Encoder interrupt service routine
      */
     void encoderISR();
+
+    /**
+     * Limit Switch Interrupts
+     */
+    void leftLimitSwitchISR();
+    void rightLimitSwitchISR();
 }
 
 #endif // MOTOR_STATE_H
