@@ -207,8 +207,8 @@ void TaskSystemIdentification()
 			RLPolicy::initializePolicy();
 			learningRate = 0.0001f;
 			// Start RL threads now that ID is converged and RLPolicy initialized
-			rlControlThread.start(TaskRLControl);
-			rlApplyThread.start(TaskRLApply);
+			// rlControlThread.start(TaskRLControl);
+			// rlApplyThread.start(TaskRLApply);
 			return; // end system identification thread
 		}
 

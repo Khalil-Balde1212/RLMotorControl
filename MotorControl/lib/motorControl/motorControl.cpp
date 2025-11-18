@@ -75,12 +75,12 @@ void Motor::TaskMotorControl()
 
     while (true) {
         // Control motor based on speed command
-        if (Motor::motorSpeed > 0 && !MotorState::isLeftStopped) {
+        if (Motor::motorSpeed > 0) {
             // Forward rotation
             analogWrite(MOTOR_PIN_A, Motor::motorSpeed);
             analogWrite(MOTOR_PIN_B, 0);
         }
-        else if (Motor::motorSpeed < 0 && !MotorState::isRightStopped) {
+        else if ((Motor::motorSpeed < 0)) {
             // Reverse rotation
             analogWrite(MOTOR_PIN_A, 0);
             analogWrite(MOTOR_PIN_B, -Motor::motorSpeed);
