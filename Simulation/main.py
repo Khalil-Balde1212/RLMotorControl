@@ -17,18 +17,30 @@ integralError = 0.0
 # Ku = 0.05
 # Pu = 35s
 
-kp = 0.06
+kp = 0.006
 ki = 0.000 
-kd = 0.1
+kd = 0.0
 
 angularVel_values = []
-for i in range(10000):
+for i in range(2000):
+    # Chirp: setpoint sweeps from 0 to 2*pi over time
+    t = i * 0.01  # time in seconds (100Hz)
+    # Chirp: setpoint sweeps between 0.5 Hz and 3 Hz over time
+    f0 = 0.1  # Start frequency (Hz)
+    f1 = 1.0  # End frequency (Hz)
+    T = 20.0  # Duration of sweep (seconds)
+    t = i * 0.01  # time in seconds (100Hz)
+    # Linear frequency sweep (chirp)
+    freq = f0 + (f1 - f0) * t / T
+    setpoint = np.sin(2 * np.pi * freq * t)
+
     error = setpoint - motor_model.angularPos
     integralError += error * 0.01
     derivativeError = (error - lastError) / 0.01
     lastError = error
 
     control_effort = kp * error + ki * integralError + kd * derivativeError
+    control_effort = setpoint
     angularPos, angularVel, angularAcc, angularJrk = motor_model.motorStep(control_effort)
     posData.append(angularPos)
     velData.append(angularVel)
