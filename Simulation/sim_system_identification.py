@@ -9,7 +9,7 @@ from typing import Optional
 # - input: chirp + multi-sine similar to MCU
 # - sampling frequency 50Hz with inner motorStep at 1000Hz
 
-SAMPLING_HZ = 50
+SAMPLING_HZ = 1000
 INNER_STEPS = int(1000 / SAMPLING_HZ)  # motorStep runs at 1kHz
 DT = 1.0 / SAMPLING_HZ
 
@@ -32,9 +32,9 @@ def run_sim(duration_sec=20.0, learning_rate=0.001, seed=0):
     AMP1 = 0.8
     AMP2 = 0.5
     AMP3 = 0.3
-    FREQ1_START, FREQ1_END = 0.01, 0.2   # Hz
-    FREQ2_START, FREQ2_END = 0.1, 1   # Hz
-    FREQ3_START, FREQ3_END = 0.5, 2.0   # Hz
+    FREQ1_START, FREQ1_END = 0.01, 1   # Hz
+    FREQ2_START, FREQ2_END = 0.5, 2   # Hz
+    FREQ3_START, FREQ3_END = 1, 5.0   # Hz
     np.random.seed(seed)
     np.random.seed(seed)
 
@@ -59,9 +59,14 @@ def run_sim(duration_sec=20.0, learning_rate=0.001, seed=0):
     ema_alpha = 0.1
     prev_error_norm = 0.0
 
-    regularization_lambda = 0.01  # Regularization strength
+    regularization_lambda = 0.0001  # Regularization strength
     I = np.eye(5)
 
+    batch_size = 5
+    batch_errors = []
+    batch_last_states = []
+    batch_us = []
+    batch_current_states = []
     for step in range(steps):
         time = step / SAMPLING_HZ
         freq = np.interp(min(time / 30.0, 1.0), [0.0, 1.0], [FREQ1_START, FREQ1_END])
@@ -83,21 +88,47 @@ def run_sim(duration_sec=20.0, learning_rate=0.001, seed=0):
         predicted = A @ last_state + B @ u
         error = current_state - predicted
         current_error_norm = np.linalg.norm(error)
-        updateA = learning_rate * (error @ last_state.T)
-        updateB = learning_rate * (error * u)
-        # Clip updates to prevent explosion
-        updateA = np.clip(updateA, -1.0, 1.0)
-        updateB = np.clip(updateB, -1.0, 1.0)
-        # Regularize A towards identity
-        A = A + updateA - regularization_lambda * (A - I)
-        B = B + updateB
-        # Clip matrices to prevent extreme values and zeros
-        eps = 1e-6
-        A = np.clip(A, -10.0, 10.0)
-        A = np.where(np.abs(A) < eps, np.sign(A) * eps, A)
-        B = np.clip(B, -10.0, 10.0)
-        B = np.where(np.abs(B) < eps, np.sign(B) * eps, B)
-        update_norm = np.linalg.norm(updateA) + np.linalg.norm(updateB)
+        batch_errors.append(error)
+        batch_last_states.append(last_state.copy())
+        batch_us.append(u.copy())
+        batch_current_states.append(current_state.copy())
+
+        # Only update A, B every batch_size steps
+        if (step + 1) % batch_size == 0:
+            # Sum errors and updates over batch
+            updateA = np.zeros_like(A)
+            updateB = np.zeros_like(B)
+            batch_update_norm = 0.0
+            for i in range(batch_size):
+                e = batch_errors[i]
+                ls = batch_last_states[i]
+                u_i = batch_us[i]
+                updateA += learning_rate * (e @ ls.T)
+                updateB += learning_rate * (e * u_i)
+                batch_update_norm += np.linalg.norm(learning_rate * (e @ ls.T)) + np.linalg.norm(learning_rate * (e * u_i))
+            # Average updates
+            updateA /= batch_size
+            updateB /= batch_size
+            # Clip updates to prevent explosion
+            updateA = np.clip(updateA, -1.0, 1.0)
+            updateB = np.clip(updateB, -1.0, 1.0)
+            # Regularize A towards identity
+            A = A + updateA - regularization_lambda * (A - I)
+            B = B + updateB
+            # Clip matrices to prevent extreme values and zeros
+            eps = 1e-6
+            A = np.clip(A, -10.0, 10.0)
+            A = np.where(np.abs(A) < eps, np.sign(A) * eps, A)
+            B = np.clip(B, -10.0, 10.0)
+            B = np.where(np.abs(B) < eps, np.sign(B) * eps, B)
+            update_norm = batch_update_norm / batch_size
+            batch_errors = []
+            batch_last_states = []
+            batch_us = []
+            batch_current_states = []
+        else:
+            update_norm = 0.0
+
         ema_error_norm = ema_alpha * current_error_norm + (1.0 - ema_alpha) * ema_error_norm
         times.append(time)
         error_norms.append(current_error_norm)
@@ -170,8 +201,8 @@ def estimate_convergence_time(times: list, error_norms: np.ndarray, threshold: f
 
 if __name__ == '__main__':
     # Run simulation
-    duration = 40.0  # seconds
-    lr = 0.00001
+    duration = 100.0  # seconds
+    lr = 0.0005
     times, error_norms, update_norms, A_final, B_final, A_hist, B_hist = run_sim(duration_sec=duration, learning_rate=lr, seed=42)
 
     # Export LTI model as numpy arrays
@@ -186,10 +217,18 @@ if __name__ == '__main__':
     A_loaded = np.load('A.npy')
     eigvals = np.linalg.eigvals(A_loaded)
     print("Eigenvalues of A:", eigvals)
-    if np.any(np.abs(eigvals) > 1):
-        print("Warning: Model is unstable (some eigenvalues have magnitude > 1)")
+    sampling_rate = SAMPLING_HZ if 'SAMPLING_HZ' in globals() else 500
+    stable = True
+    for idx, eig in enumerate(eigvals):
+        crit = eig * (1.0 / sampling_rate) + 1.0
+        passed = np.abs(crit) < 1.0
+        print(f"Eigenvalue {idx}: {eig:.4f}, stability criterion: {crit:.4f} -> {'PASS' if passed else 'FAIL'}")
+        if not passed:
+            stable = False
+    if stable:
+        print("Model is stable (all eigenvalues pass the criterion eigen*dt + 1 < 1)")
     else:
-        print("Model is stable (all eigenvalues have magnitude <= 1)")
+        print("Warning: Model is unstable (some eigenvalues fail the criterion eigen*dt + 1 < 1)")
 
     # Calculate expected discrete LTI from bdc_motor_model.py
     from bdc_motor_model import R, L, Ke, Kt, J, B, DT
@@ -256,7 +295,7 @@ if __name__ == '__main__':
     fig.colorbar(im2, ax=ax3)
 
     # Estimate convergence time (absolute seconds) using the same threshold as MCU
-    threshold = 0.1  # same as accuracyThreshold in RLAgent
+    threshold = 0.05  # same as accuracyThreshold in RLAgent
     predicted = estimate_convergence_time(times, error_norms, threshold=threshold)
     if predicted is None:
         text_str = "Estimated convergence: unknown"

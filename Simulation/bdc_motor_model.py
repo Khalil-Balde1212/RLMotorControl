@@ -5,19 +5,17 @@ from scipy import signal
 # Based on: https://www.amazon.ca/dp/B07X1STDH2
 # Typical small DC motor with ~30:1 gearbox
 
-# Base motor (before gearbox) estimated parameters:
-R = 0.5       # Resistance (Ohms) - typical for small DC motors
-L = 0.1     # Inductance (H) - small motors have low inductance
-Ke = 0.0073  # Back EMF constant of base motor (V/rad/s)
-Kt = 0.0073  # Torque constant of base motor (Nm/A)
-J = 0.000001  # Base motor rotor inertia (kg.m^2)
-B = 0.00001  # Base motor friction (minimal)
+R = 0.5        # Resistance (Ohms)
+L = 0.1        # Inductance (H)
+Ke = 0.01      # Back EMF constant (V·s/rad)
+Kt = 0.01      # Torque constant (Nm/A)
+J = 5e-6       # Rotor inertia (kg·m²)
+B = 1e-5       # Friction coefficient (Nm·s/rad)
+V_nominal = 12 # Nominal voltage (V)
+I_max = 2      # Maximum current (A)
+omega_no_load = 5000  # No-load speed (RPM)
+I_no_load = 0.1   # No-load current (A)
 
-J += 0.0002  # Add gearbox inertia
-B += 0.0001   # Add gearbox friction
-
-J += 0.0005  # Add load inertia
-B += 0.0005  # Add load friction
 
 MAX_VOLTAGE = 12.0
 
